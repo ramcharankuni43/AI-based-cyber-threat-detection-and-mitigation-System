@@ -1,6 +1,6 @@
 # AI-Based Network Intrusion Detection & Automated Mitigation System
 
-**College Final-Year Project • Computer Science / Cybersecurity**  
+** • Computer Science / Cybersecurity**  
 *Machine Learning • Explainable AI (SHAP) • MITRE ATT&CK Framework • Automated Firewall Quarantine*
 
 ---
