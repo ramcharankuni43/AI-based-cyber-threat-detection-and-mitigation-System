@@ -140,6 +140,10 @@ def load_and_preprocess_dataset():
         X_train_val, y_train_val, test_size=val_ratio_of_remaining, random_state=42, stratify=y_train_val
     )
     
+    original_train_count = len(X_train)
+    val_count = len(X_val)
+    test_count = len(X_test)
+    
     # Feature Scaling: fit ONLY on training set to prevent data leakage
     scaler = StandardScaler()
     X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=encoded_feature_cols)
@@ -150,6 +154,21 @@ def load_and_preprocess_dataset():
     smote = SMOTE(random_state=42, k_neighbors=3)
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
     
+    # Post-SMOTE Categorical Constraint Enforcement:
+    # Snap continuous interpolated values of categorical columns to their nearest valid discrete levels
+    cat_cols_to_snap = ["proto_code", "service_code", "state_code"]
+    for cat_col in cat_cols_to_snap:
+        if cat_col in encoded_feature_cols:
+            col_idx = encoded_feature_cols.index(cat_col)
+            c_mean = scaler.mean_[col_idx]
+            c_scale = scaler.scale_[col_idx]
+            num_cats = len(df[cat_col.replace("_code", "")].unique())
+            valid_discrete_scaled = np.array([(k - c_mean) / c_scale for k in range(num_cats)])
+            col_vals = X_train_balanced[cat_col].values
+            diffs = np.abs(col_vals[:, None] - valid_discrete_scaled[None, :])
+            nearest_indices = diffs.argmin(axis=1)
+            X_train_balanced[cat_col] = valid_discrete_scaled[nearest_indices]
+    
     return {
         "X_train": X_train_balanced,
         "y_train": y_train_balanced,
@@ -157,6 +176,9 @@ def load_and_preprocess_dataset():
         "y_val": y_val,
         "X_test": X_test_scaled,
         "y_test": y_test,
+        "original_train_count": original_train_count,
+        "val_count": val_count,
+        "test_count": test_count,
         "raw_df": df,
         "duplicates_removed": duplicates_removed,
         "feature_cols": encoded_feature_cols,
@@ -173,8 +195,8 @@ def train_and_evaluate_all():
     """
     Trains Random Forest, XGBoost, and Isolation Forest.
     Evaluates all 3 models on the independent hold-out test set according to PRD Section 12 & FR-15.
-    Calculates Accuracy, Precision, Recall, F1-Score, FPR, FNR, ROC-AUC, prediction latency per flow,
-    and granular per-class breakdown.
+    Calculates Accuracy, Precision, Recall, F1-Score, FPR, FNR, ROC-AUC (without fabricated fallbacks),
+    prediction latency per flow, and granular per-class breakdown.
     """
     print("=" * 60)
     print("   AI Network Intrusion Detection: Pipeline Training")
@@ -225,10 +247,17 @@ def train_and_evaluate_all():
     normal_mask = (y_test == normal_idx)
     rf_fpr = float(np.sum((normal_mask) & (y_pred_rf != normal_idx)) / np.sum(normal_mask))
     
+    # Unbiased ROC-AUC calculation (No fabricated fallback)
     try:
-        rf_roc_auc = float(roc_auc_score(pd.get_dummies(y_test), y_prob_rf, multi_class="ovr", average="weighted"))
-    except Exception:
-        rf_roc_auc = 0.995
+        y_test_dummies = pd.get_dummies(y_test)
+        rf_roc_auc = float(roc_auc_score(y_test_dummies, y_prob_rf, multi_class="ovr", average="weighted"))
+        if np.isnan(rf_roc_auc):
+            rf_roc_auc = None
+        else:
+            rf_roc_auc = round(rf_roc_auc, 4)
+    except Exception as e:
+        print(f"[!] Warning: ROC-AUC calculation failed for Random Forest ({e}). Reporting as unavailable.")
+        rf_roc_auc = None
         
     rf_cm = confusion_matrix(y_test, y_pred_rf).tolist()
     rf_per_class = compute_per_class_metrics(y_test, y_pred_rf, classes)
@@ -270,9 +299,15 @@ def train_and_evaluate_all():
     
     xgb_fpr = float(np.sum((normal_mask) & (y_pred_xgb != normal_idx)) / np.sum(normal_mask))
     try:
-        xgb_roc_auc = float(roc_auc_score(pd.get_dummies(y_test), y_prob_xgb, multi_class="ovr", average="weighted"))
-    except Exception:
-        xgb_roc_auc = 0.998
+        y_test_dummies = pd.get_dummies(y_test)
+        xgb_roc_auc = float(roc_auc_score(y_test_dummies, y_prob_xgb, multi_class="ovr", average="weighted"))
+        if np.isnan(xgb_roc_auc):
+            xgb_roc_auc = None
+        else:
+            xgb_roc_auc = round(xgb_roc_auc, 4)
+    except Exception as e:
+        print(f"[!] Warning: ROC-AUC calculation failed for XGBoost ({e}). Reporting as unavailable.")
+        xgb_roc_auc = None
         
     xgb_cm = confusion_matrix(y_test, y_pred_xgb).tolist()
     xgb_per_class = compute_per_class_metrics(y_test, y_pred_xgb, classes)
@@ -311,8 +346,13 @@ def train_and_evaluate_all():
     iso_scores = -iso_forest.decision_function(X_test)
     try:
         iso_roc_auc = float(roc_auc_score(binary_y_test, iso_scores))
-    except Exception:
-        iso_roc_auc = 0.965
+        if np.isnan(iso_roc_auc):
+            iso_roc_auc = None
+        else:
+            iso_roc_auc = round(iso_roc_auc, 4)
+    except Exception as e:
+        print(f"[!] Warning: ROC-AUC calculation failed for Isolation Forest ({e}). Reporting as unavailable.")
+        iso_roc_auc = None
         
     print(f"[OK] Isolation Forest - Anomaly F1: {iso_f1:.4f}, FPR: {iso_fpr:.4f}, Latency: {iso_latency_per_flow} ms/flow")
 
@@ -345,16 +385,20 @@ def train_and_evaluate_all():
     # Model Comparison Summary (FR-15, Section 12)
     comparison_report = {
         "dataset": {
-            "name": "UNSW-NB15 / CICIDS2017 Sampled Benchmark",
+            "name": "Synthetic Network Intrusion Benchmark (modeled after UNSW-NB15 / CICIDS2017 distributions)",
+            "data_type": "Synthetic / Simulated Benchmark",
+            "benchmark_note": "Dataset is synthetically generated with statistical distributions modeled after UNSW-NB15 and CICIDS2017. High metric scores reflect performance on this synthetic evaluation set and do not establish guaranteed operational efficacy on heterogeneous real-world production networks.",
             "total_samples": len(prep["raw_df"]),
-            "train_samples": len(X_train),
+            "original_train_samples": prep["original_train_count"],
+            "smote_resampled_train_samples": len(X_train),
+            "validation_samples": prep["val_count"],
             "test_samples": len(X_test),
             "classes": classes,
             "features_count": len(feature_cols),
             "data_leakage_safeguards": {
                 "split_strategy": "Stratified 3-way hold-out (70% Train, 15% Val, 15% Independent Test)",
                 "scaler_fit": "Train split only (zero leakage)",
-                "smote_applied": "Train split only",
+                "smote_applied": "Train split only (categorical levels snapped to discrete states)",
                 "duplicates_removed": prep["duplicates_removed"]
             }
         },

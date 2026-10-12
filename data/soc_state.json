@@ -1,427 +1,636 @@
 {
   "blocklist": {
-    "185.220.101.85": {
-      "timestamp": "07:11:01",
-      "quarantined_at": 1791769261.3738194,
+    "198.51.100.76": {
+      "timestamp": "08:31:11",
+      "quarantined_at": 1791774071.8382223,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 67.7,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_76\" dir=in action=block remoteip=198.51.100.76"
+    },
+    "198.51.100.51": {
+      "timestamp": "08:31:12",
+      "quarantined_at": 1791774072.1525135,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 66.8,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_51\" dir=in action=block remoteip=198.51.100.51"
+    },
+    "198.51.100.47": {
+      "timestamp": "08:31:12",
+      "quarantined_at": 1791774072.840246,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 65.3,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_47\" dir=in action=block remoteip=198.51.100.47"
+    },
+    "198.51.100.72": {
+      "timestamp": "08:31:13",
+      "quarantined_at": 1791774073.176443,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 65.3,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_72\" dir=in action=block remoteip=198.51.100.72"
+    },
+    "198.51.100.19": {
+      "timestamp": "08:31:13",
+      "quarantined_at": 1791774073.4823515,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 67.5,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_19\" dir=in action=block remoteip=198.51.100.19"
+    },
+    "198.51.100.28": {
+      "timestamp": "08:31:13",
+      "quarantined_at": 1791774073.793805,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 67.3,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_28\" dir=in action=block remoteip=198.51.100.28"
+    },
+    "198.51.100.31": {
+      "timestamp": "08:31:14",
+      "quarantined_at": 1791774074.0872247,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 63.5,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_31\" dir=in action=block remoteip=198.51.100.31"
+    },
+    "198.51.100.64": {
+      "timestamp": "08:31:14",
+      "quarantined_at": 1791774074.3991954,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 61.3,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_64\" dir=in action=block remoteip=198.51.100.64"
+    },
+    "198.51.100.66": {
+      "timestamp": "08:31:14",
+      "quarantined_at": 1791774074.7116785,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 63.3,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_66\" dir=in action=block remoteip=198.51.100.66"
+    },
+    "185.220.101.24": {
+      "timestamp": "08:34:07",
+      "quarantined_at": 1791774247.7028902,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
-      "risk_score": 79.1,
+      "risk_score": 78.6,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_85\" dir=in action=block remoteip=185.220.101.85"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_24\" dir=in action=block remoteip=185.220.101.24"
     },
-    "185.220.101.73": {
-      "timestamp": "07:11:01",
-      "quarantined_at": 1791769261.7574508,
+    "185.220.101.9": {
+      "timestamp": "08:34:08",
+      "quarantined_at": 1791774248.0555317,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
-      "risk_score": 77.1,
+      "risk_score": 75.7,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_73\" dir=in action=block remoteip=185.220.101.73"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_9\" dir=in action=block remoteip=185.220.101.9"
     },
-    "185.220.101.88": {
-      "timestamp": "07:11:02",
-      "quarantined_at": 1791769262.1374328,
+    "185.220.101.5": {
+      "timestamp": "08:34:08",
+      "quarantined_at": 1791774248.5309153,
+      "ttl_seconds": 3600,
+      "threat": "Brute Force",
+      "risk_score": 78.9,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_5\" dir=in action=block remoteip=185.220.101.5"
+    },
+    "185.220.101.32": {
+      "timestamp": "08:34:08",
+      "quarantined_at": 1791774248.9119794,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
       "risk_score": 78.3,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_88\" dir=in action=block remoteip=185.220.101.88"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_32\" dir=in action=block remoteip=185.220.101.32"
     },
-    "185.220.101.62": {
-      "timestamp": "07:11:02",
-      "quarantined_at": 1791769262.5222912,
+    "185.220.101.65": {
+      "timestamp": "08:34:09",
+      "quarantined_at": 1791774249.3128486,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
-      "risk_score": 79.5,
+      "risk_score": 77.1,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_62\" dir=in action=block remoteip=185.220.101.62"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_65\" dir=in action=block remoteip=185.220.101.65"
     },
-    "185.220.101.93": {
-      "timestamp": "07:12:29",
-      "quarantined_at": 1791769349.8219724,
-      "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 78.4,
-      "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
-      "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_93\" dir=in action=block remoteip=185.220.101.93"
-    },
-    "185.220.101.40": {
-      "timestamp": "07:12:30",
-      "quarantined_at": 1791769350.1435485,
-      "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 77.3,
-      "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
-      "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_40\" dir=in action=block remoteip=185.220.101.40"
-    },
-    "185.220.101.41": {
-      "timestamp": "07:12:30",
-      "quarantined_at": 1791769350.4679146,
+    "185.220.101.80": {
+      "timestamp": "08:34:09",
+      "quarantined_at": 1791774249.7115865,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
       "risk_score": 79.2,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_41\" dir=in action=block remoteip=185.220.101.41"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_80\" dir=in action=block remoteip=185.220.101.80"
     },
-    "185.220.101.43": {
-      "timestamp": "07:12:30",
-      "quarantined_at": 1791769350.902021,
-      "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 77.6,
-      "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
-      "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_43\" dir=in action=block remoteip=185.220.101.43"
-    },
-    "185.220.101.12": {
-      "timestamp": "07:12:31",
-      "quarantined_at": 1791769351.983043,
-      "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 79.4,
-      "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
-      "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_12\" dir=in action=block remoteip=185.220.101.12"
-    },
-    "185.220.101.94": {
-      "timestamp": "07:12:32",
-      "quarantined_at": 1791769352.7662306,
-      "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 78.5,
-      "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
-      "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_94\" dir=in action=block remoteip=185.220.101.94"
-    },
-    "185.220.101.79": {
-      "timestamp": "07:12:33",
-      "quarantined_at": 1791769353.151822,
-      "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 76.4,
-      "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
-      "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_79\" dir=in action=block remoteip=185.220.101.79"
-    },
-    "185.220.101.71": {
-      "timestamp": "07:12:33",
-      "quarantined_at": 1791769353.4629195,
+    "185.220.101.27": {
+      "timestamp": "08:34:10",
+      "quarantined_at": 1791774250.1356509,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
       "risk_score": 79.9,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_71\" dir=in action=block remoteip=185.220.101.71"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_27\" dir=in action=block remoteip=185.220.101.27"
     },
-    "185.220.101.80": {
-      "timestamp": "07:12:33",
-      "quarantined_at": 1791769353.7827852,
+    "185.220.101.16": {
+      "timestamp": "08:34:10",
+      "quarantined_at": 1791774250.5229075,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
-      "risk_score": 78.7,
+      "risk_score": 74.2,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_80\" dir=in action=block remoteip=185.220.101.80"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_16\" dir=in action=block remoteip=185.220.101.16"
     },
-    "185.220.101.89": {
-      "timestamp": "07:12:37",
-      "quarantined_at": 1791769357.7579868,
+    "185.220.101.33": {
+      "timestamp": "08:34:10",
+      "quarantined_at": 1791774250.8738158,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
-      "risk_score": 78.8,
+      "risk_score": 77.5,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_89\" dir=in action=block remoteip=185.220.101.89"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_33\" dir=in action=block remoteip=185.220.101.33"
     },
-    "185.220.101.5": {
-      "timestamp": "07:12:38",
-      "quarantined_at": 1791769358.0824301,
+    "185.220.101.14": {
+      "timestamp": "08:34:11",
+      "quarantined_at": 1791774251.3443232,
       "ttl_seconds": 3600,
       "threat": "Brute Force",
-      "risk_score": 79.1,
+      "risk_score": 76.8,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_5\" dir=in action=block remoteip=185.220.101.5"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_14\" dir=in action=block remoteip=185.220.101.14"
     },
-    "185.220.101.82": {
-      "timestamp": "07:12:38",
-      "quarantined_at": 1791769358.487484,
+    "198.51.100.22": {
+      "timestamp": "08:34:51",
+      "quarantined_at": 1791774291.6181872,
       "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 78.1,
+      "threat": "Port Scan",
+      "risk_score": 65.2,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_82\" dir=in action=block remoteip=185.220.101.82"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_22\" dir=in action=block remoteip=198.51.100.22"
     },
-    "185.220.101.6": {
-      "timestamp": "07:12:39",
-      "quarantined_at": 1791769359.208552,
+    "198.51.100.45": {
+      "timestamp": "08:34:51",
+      "quarantined_at": 1791774291.9275553,
       "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 78.3,
+      "threat": "Port Scan",
+      "risk_score": 68.8,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_6\" dir=in action=block remoteip=185.220.101.6"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_45\" dir=in action=block remoteip=198.51.100.45"
     },
-    "185.220.101.68": {
-      "timestamp": "07:12:39",
-      "quarantined_at": 1791769359.5225425,
+    "198.51.100.44": {
+      "timestamp": "08:34:52",
+      "quarantined_at": 1791774292.2342494,
       "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 79.5,
+      "threat": "Port Scan",
+      "risk_score": 64.7,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_68\" dir=in action=block remoteip=185.220.101.68"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_44\" dir=in action=block remoteip=198.51.100.44"
     },
-    "185.220.101.49": {
-      "timestamp": "07:12:39",
-      "quarantined_at": 1791769359.902487,
+    "198.51.100.79": {
+      "timestamp": "08:34:52",
+      "quarantined_at": 1791774292.815914,
       "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 78.8,
+      "threat": "Port Scan",
+      "risk_score": 61.3,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_49\" dir=in action=block remoteip=185.220.101.49"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_79\" dir=in action=block remoteip=198.51.100.79"
     },
-    "185.220.101.45": {
-      "timestamp": "07:12:40",
-      "quarantined_at": 1791769360.3085995,
+    "198.51.100.33": {
+      "timestamp": "08:34:53",
+      "quarantined_at": 1791774293.1536064,
       "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 77.1,
+      "threat": "Port Scan",
+      "risk_score": 66.7,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_45\" dir=in action=block remoteip=185.220.101.45"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_33\" dir=in action=block remoteip=198.51.100.33"
     },
-    "185.220.101.59": {
-      "timestamp": "07:12:40",
-      "quarantined_at": 1791769360.686215,
+    "198.51.100.63": {
+      "timestamp": "08:34:53",
+      "quarantined_at": 1791774293.7869353,
       "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 72.3,
+      "threat": "Port Scan",
+      "risk_score": 62.9,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_59\" dir=in action=block remoteip=185.220.101.59"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_63\" dir=in action=block remoteip=198.51.100.63"
     },
-    "185.220.101.56": {
-      "timestamp": "07:12:41",
-      "quarantined_at": 1791769361.0227692,
+    "198.51.100.48": {
+      "timestamp": "08:35:32",
+      "quarantined_at": 1791774332.6957974,
       "ttl_seconds": 3600,
-      "threat": "Brute Force",
-      "risk_score": 75.8,
+      "threat": "Port Scan",
+      "risk_score": 69.0,
       "risk_level": "High",
-      "status": "BLOCKED (Sandbox)",
+      "status": "BLOCKED (Simulated Sandbox)",
       "mode": "Simulated Sandbox",
-      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_185_220_101_56\" dir=in action=block remoteip=185.220.101.56"
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_48\" dir=in action=block remoteip=198.51.100.48"
+    },
+    "198.51.100.49": {
+      "timestamp": "08:35:32",
+      "quarantined_at": 1791774332.9823434,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 62.9,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_49\" dir=in action=block remoteip=198.51.100.49"
+    },
+    "198.51.100.52": {
+      "timestamp": "08:35:33",
+      "quarantined_at": 1791774333.27719,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 65.2,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_52\" dir=in action=block remoteip=198.51.100.52"
+    },
+    "198.51.100.17": {
+      "timestamp": "08:35:33",
+      "quarantined_at": 1791774333.5321407,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 61.5,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_17\" dir=in action=block remoteip=198.51.100.17"
+    },
+    "198.51.100.57": {
+      "timestamp": "08:35:33",
+      "quarantined_at": 1791774333.7893322,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 63.3,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_57\" dir=in action=block remoteip=198.51.100.57"
+    },
+    "198.51.100.40": {
+      "timestamp": "08:35:34",
+      "quarantined_at": 1791774334.0762937,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 65.5,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_40\" dir=in action=block remoteip=198.51.100.40"
+    },
+    "198.51.100.78": {
+      "timestamp": "08:35:34",
+      "quarantined_at": 1791774334.3394206,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 67.9,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_78\" dir=in action=block remoteip=198.51.100.78"
+    },
+    "198.51.100.75": {
+      "timestamp": "08:35:34",
+      "quarantined_at": 1791774334.630262,
+      "ttl_seconds": 3600,
+      "threat": "Port Scan",
+      "risk_score": 67.3,
+      "risk_level": "High",
+      "status": "BLOCKED (Simulated Sandbox)",
+      "mode": "Simulated Sandbox",
+      "rule": "netsh advfirewall firewall add rule name=\"AI_IDS_BLOCK_198_51_100_75\" dir=in action=block remoteip=198.51.100.75"
     }
   },
   "audit_logs": [
     {
-      "timestamp": "07:12:41",
+      "timestamp": "08:35:34",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.56",
+      "target": "198.51.100.75",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 75.8).",
+      "reason": "High severity threat Port Scan detected (Score: 67.3). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:40",
+      "timestamp": "08:35:34",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.59",
+      "target": "198.51.100.78",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 72.3).",
+      "reason": "High severity threat Port Scan detected (Score: 67.9). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:40",
+      "timestamp": "08:35:34",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.45",
+      "target": "198.51.100.40",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 77.1).",
+      "reason": "High severity threat Port Scan detected (Score: 65.5). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:39",
+      "timestamp": "08:35:33",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.49",
+      "target": "198.51.100.57",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.8).",
+      "reason": "High severity threat Port Scan detected (Score: 63.3). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:39",
+      "timestamp": "08:35:33",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.68",
+      "target": "198.51.100.17",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 79.5).",
+      "reason": "High severity threat Port Scan detected (Score: 61.5). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:39",
+      "timestamp": "08:35:33",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.6",
+      "target": "198.51.100.52",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.3).",
+      "reason": "High severity threat Port Scan detected (Score: 65.2). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:38",
+      "timestamp": "08:35:32",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.82",
+      "target": "198.51.100.49",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.1).",
+      "reason": "High severity threat Port Scan detected (Score: 62.9). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:38",
+      "timestamp": "08:35:32",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.5",
+      "target": "198.51.100.48",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 79.1).",
+      "reason": "High severity threat Port Scan detected (Score: 69.0). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:37",
+      "timestamp": "08:34:53",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.89",
+      "target": "198.51.100.63",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.8).",
+      "reason": "High severity threat Port Scan detected (Score: 62.9). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:33",
+      "timestamp": "08:34:53",
+      "action": "IP_QUARANTINED",
+      "target": "198.51.100.33",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Port Scan detected (Score: 66.7). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:52",
+      "action": "IP_QUARANTINED",
+      "target": "198.51.100.79",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Port Scan detected (Score: 61.3). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:52",
+      "action": "IP_QUARANTINED",
+      "target": "198.51.100.44",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Port Scan detected (Score: 64.7). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:51",
+      "action": "IP_QUARANTINED",
+      "target": "198.51.100.45",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Port Scan detected (Score: 68.8). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:51",
+      "action": "IP_QUARANTINED",
+      "target": "198.51.100.22",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Port Scan detected (Score: 65.2). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:11",
+      "action": "IP_QUARANTINED",
+      "target": "185.220.101.14",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Brute Force detected (Score: 76.8). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:10",
+      "action": "IP_QUARANTINED",
+      "target": "185.220.101.33",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Brute Force detected (Score: 77.5). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:10",
+      "action": "IP_QUARANTINED",
+      "target": "185.220.101.16",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Brute Force detected (Score: 74.2). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:10",
+      "action": "IP_QUARANTINED",
+      "target": "185.220.101.27",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Brute Force detected (Score: 79.9). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:34:09",
       "action": "IP_QUARANTINED",
       "target": "185.220.101.80",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.7).",
+      "reason": "High severity threat Brute Force detected (Score: 79.2). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:33",
+      "timestamp": "08:34:09",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.71",
+      "target": "185.220.101.65",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 79.9).",
+      "reason": "High severity threat Brute Force detected (Score: 77.1). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:33",
+      "timestamp": "08:34:08",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.79",
+      "target": "185.220.101.32",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 76.4).",
+      "reason": "High severity threat Brute Force detected (Score: 78.3). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:32",
+      "timestamp": "08:34:08",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.94",
+      "target": "185.220.101.5",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.5).",
+      "reason": "High severity threat Brute Force detected (Score: 78.9). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:31",
+      "timestamp": "08:34:08",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.12",
+      "target": "185.220.101.9",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 79.4).",
+      "reason": "High severity threat Brute Force detected (Score: 75.7). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:30",
+      "timestamp": "08:34:07",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.43",
+      "target": "185.220.101.24",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 77.6).",
+      "reason": "High severity threat Brute Force detected (Score: 78.6). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:30",
+      "timestamp": "08:31:14",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.41",
+      "target": "198.51.100.66",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 79.2).",
+      "reason": "High severity threat Port Scan detected (Score: 63.3). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:30",
+      "timestamp": "08:31:14",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.40",
+      "target": "198.51.100.64",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 77.3).",
+      "reason": "High severity threat Port Scan detected (Score: 61.3). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:12:29",
+      "timestamp": "08:31:14",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.93",
+      "target": "198.51.100.31",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.4).",
+      "reason": "High severity threat Port Scan detected (Score: 63.5). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:11:02",
+      "timestamp": "08:31:13",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.62",
+      "target": "198.51.100.28",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 79.5).",
+      "reason": "High severity threat Port Scan detected (Score: 67.3). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:11:02",
+      "timestamp": "08:31:13",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.88",
+      "target": "198.51.100.19",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 78.3).",
+      "reason": "High severity threat Port Scan detected (Score: 67.5). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:11:01",
+      "timestamp": "08:31:13",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.73",
+      "target": "198.51.100.72",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 77.1).",
+      "reason": "High severity threat Port Scan detected (Score: 65.3). Status: SUCCESS",
       "result": "SUCCESS"
     },
     {
-      "timestamp": "07:11:01",
+      "timestamp": "08:31:12",
       "action": "IP_QUARANTINED",
-      "target": "185.220.101.85",
+      "target": "198.51.100.47",
       "actor": "Autonomous Mitigation (Simulated Sandbox)",
-      "reason": "High severity threat Brute Force detected (Score: 79.1).",
+      "reason": "High severity threat Port Scan detected (Score: 65.3). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:31:12",
+      "action": "IP_QUARANTINED",
+      "target": "198.51.100.51",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Port Scan detected (Score: 66.8). Status: SUCCESS",
+      "result": "SUCCESS"
+    },
+    {
+      "timestamp": "08:31:11",
+      "action": "IP_QUARANTINED",
+      "target": "198.51.100.76",
+      "actor": "Autonomous Mitigation (Simulated Sandbox)",
+      "reason": "High severity threat Port Scan detected (Score: 67.7). Status: SUCCESS",
       "result": "SUCCESS"
     }
   ],
-  "total_flows_processed": 24,
-  "blocked_traffic_drops": 2,
+  "total_flows_processed": 45,
+  "blocked_traffic_drops": 5,
   "dismissed_ips": []
 }

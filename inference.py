@@ -7,9 +7,10 @@ import ipaddress
 import subprocess
 import warnings
 
-# Suppress benign sklearn parallel configuration warning
-warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
-warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
+# Suppress benign sklearn/joblib parallel configuration warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", message=".*sklearn.*")
+warnings.filterwarnings("ignore", message=".*joblib.*")
 
 from urllib.parse import urlparse
 import joblib
@@ -160,37 +161,123 @@ def check_ip_whitelist(ip_str: str) -> tuple:
         
     return False, ""
 
+def validate_ip_address(ip_str: str) -> str:
+    """
+    Validates that ip_str is a legitimate IPv4 or IPv6 address.
+    Returns normalized canonical IP string if valid, otherwise raises ValueError.
+    Prevents shell command injection, formatting bypasses, and malformed inputs.
+    """
+    if not ip_str or not isinstance(ip_str, str):
+        raise ValueError(f"Invalid IP address input: '{ip_str}' (expected non-empty string)")
+    clean = ip_str.strip()
+    try:
+        ip_obj = ipaddress.ip_address(clean)
+        return str(ip_obj)
+    except ValueError as e:
+        raise ValueError(f"Invalid IP address '{clean}': {e}")
+
+def is_valid_ip(ip_str: str) -> bool:
+    """Checks if an input string is a valid IPv4 or IPv6 address."""
+    try:
+        validate_ip_address(ip_str)
+        return True
+    except (ValueError, TypeError):
+        return False
+
 def generate_firewall_rule(ip_str: str, action: str = "block") -> dict:
     """
-    Generates executable Windows Defender Firewall / Netsh / PowerShell commands for real OS enforcement.
+    Generates sanitized Windows Defender Firewall / Netsh / PowerShell rule definitions.
+    Strictly validates IP address to prevent shell command injection.
+    Provides structured argument lists for safe execution without shell=True.
     """
-    clean_ip = str(ip_str).strip()
-    rule_name = f"AI_IDS_BLOCK_{clean_ip.replace('.', '_')}"
-    netsh_cmd = f'netsh advfirewall firewall add rule name="{rule_name}" dir=in action=block remoteip={clean_ip}'
-    powershell_cmd = f'New-NetFirewallRule -DisplayName "{rule_name}" -Direction Inbound -Action Block -RemoteAddress "{clean_ip}"'
+    try:
+        valid_ip = validate_ip_address(ip_str)
+    except ValueError as err:
+        return {
+            "valid": False,
+            "error": str(err),
+            "ip": str(ip_str),
+            "rule_name": "",
+            "netsh_command": "",
+            "netsh_args": [],
+            "powershell_command": "",
+            "rollback_command": "",
+            "rollback_args": []
+        }
+
+    # Safe rule name: alphanumeric and underscore only
+    sanitized_ip_tag = valid_ip.replace(".", "_").replace(":", "_")
+    rule_name = f"AI_IDS_BLOCK_{sanitized_ip_tag}"
+    
+    # Safe argument lists for subprocess (shell=False)
+    netsh_args = ["netsh", "advfirewall", "firewall", "add", "rule", f"name={rule_name}", "dir=in", "action=block", f"remoteip={valid_ip}"]
+    rollback_args = ["netsh", "advfirewall", "firewall", "delete", "rule", f"name={rule_name}"]
+    
+    # Display string commands for UI / auditing (properly quoted)
+    netsh_cmd = f'netsh advfirewall firewall add rule name="{rule_name}" dir=in action=block remoteip={valid_ip}'
+    powershell_cmd = f'New-NetFirewallRule -DisplayName "{rule_name}" -Direction Inbound -Action Block -RemoteAddress "{valid_ip}"'
     rollback_cmd = f'netsh advfirewall firewall delete rule name="{rule_name}"'
+    
     return {
+        "valid": True,
+        "error": None,
         "rule_name": rule_name,
-        "ip": clean_ip,
+        "ip": valid_ip,
         "netsh_command": netsh_cmd,
+        "netsh_args": netsh_args,
         "powershell_command": powershell_cmd,
-        "rollback_command": rollback_cmd
+        "rollback_command": rollback_cmd,
+        "rollback_args": rollback_args
     }
 
-def execute_firewall_rule(ip_str: str) -> dict:
+def execute_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
     """
-    Executes real host Windows Defender firewall rule using netsh.
-    Requires administrative permissions. Returns execution status and details.
+    Executes or simulates firewall quarantine rule.
+    - Default is simulate_safe=True: Safe Sandbox Lab mode (no changes to host OS firewall).
+    - When simulate_safe=False: Executes netsh rule using safe argument list (shell=False).
+    - Strictly validates IP address before processing.
     """
     rule_spec = generate_firewall_rule(ip_str, action="block")
-    cmd = rule_spec["netsh_command"]
+    if not rule_spec.get("valid", False):
+        return {
+            "success": False,
+            "requires_elevation": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": rule_spec.get("error", "Invalid IP address"),
+            "status_message": f"Validation Error: {rule_spec.get('error')}",
+            "command": "",
+            "rule_name": "",
+            "mode": "Simulated Sandbox" if simulate_safe else "Windows Defender Netsh",
+            "simulated": simulate_safe
+        }
+        
+    valid_ip = rule_spec["ip"]
+    rule_name = rule_spec["rule_name"]
+    cmd_display = rule_spec["netsh_command"]
+    args_list = rule_spec["netsh_args"]
+    
+    if simulate_safe:
+        return {
+            "success": True,
+            "requires_elevation": False,
+            "returncode": 0,
+            "stdout": f"[SIMULATED_LAB] Rule {rule_name} added for IP {valid_ip} in software sandbox.",
+            "stderr": "",
+            "status_message": f"Simulated Quarantine Active: Traffic from {valid_ip} dropped in memory (Safe Lab - Host OS firewall unmodified)",
+            "command": cmd_display,
+            "rule_name": rule_name,
+            "mode": "Simulated Sandbox",
+            "simulated": True
+        }
+        
     try:
-        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=8)
+        # Safe execution: shell=False with argument list
+        proc = subprocess.run(args_list, shell=False, capture_output=True, text=True, timeout=8)
         stdout_txt = proc.stdout.strip()
         stderr_txt = proc.stderr.strip()
         combined_out = f"{stdout_txt} {stderr_txt}".strip()
         
-        # Check if elevation was denied
         requires_elevation = "requires elevation" in combined_out.lower() or "administrator" in combined_out.lower()
         success = (proc.returncode == 0) and ("ok." in stdout_txt.lower() or "ok" in stdout_txt.lower())
         
@@ -204,9 +291,10 @@ def execute_firewall_rule(ip_str: str) -> dict:
             "stdout": stdout_txt,
             "stderr": stderr_txt,
             "status_message": status_msg,
-            "command": cmd,
-            "rule_name": rule_spec["rule_name"],
-            "mode": "Windows Defender Netsh"
+            "command": cmd_display,
+            "rule_name": rule_name,
+            "mode": "Windows Defender Netsh",
+            "simulated": False
         }
     except Exception as e:
         return {
@@ -216,31 +304,69 @@ def execute_firewall_rule(ip_str: str) -> dict:
             "stdout": "",
             "stderr": str(e),
             "status_message": f"Execution error: {str(e)}",
-            "command": cmd,
-            "rule_name": rule_spec["rule_name"],
-            "mode": "Windows Defender Netsh"
+            "command": cmd_display,
+            "rule_name": rule_name,
+            "mode": "Windows Defender Netsh",
+            "simulated": False
         }
 
-def remove_firewall_rule(ip_str: str) -> dict:
+def remove_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
     """
-    Deletes the Windows Defender firewall rule using netsh.
+    Deletes or simulates deletion of Windows Defender firewall rule.
+    - Default is simulate_safe=True: Safe Sandbox Lab mode.
+    - When simulate_safe=False: Executes netsh rollback using safe argument list (shell=False).
+    - Returns success: True ONLY when deletion succeeds or is safely simulated.
     """
     rule_spec = generate_firewall_rule(ip_str, action="block")
-    cmd = rule_spec["rollback_command"]
+    if not rule_spec.get("valid", False):
+        return {
+            "success": False,
+            "returncode": -1,
+            "stdout": "",
+            "stderr": rule_spec.get("error", "Invalid IP address"),
+            "status_message": f"Validation Error: {rule_spec.get('error')}",
+            "command": "",
+            "rule_name": "",
+            "mode": "Simulated Sandbox" if simulate_safe else "Windows Defender Netsh",
+            "simulated": simulate_safe
+        }
+        
+    valid_ip = rule_spec["ip"]
+    rule_name = rule_spec["rule_name"]
+    cmd_display = rule_spec["rollback_command"]
+    args_list = rule_spec["rollback_args"]
+    
+    if simulate_safe:
+        return {
+            "success": True,
+            "returncode": 0,
+            "stdout": f"[SIMULATED_LAB] Rule {rule_name} removed for IP {valid_ip}.",
+            "stderr": "",
+            "status_message": f"Simulated Quarantine Released: IP {valid_ip} unblocked in memory.",
+            "command": cmd_display,
+            "rule_name": rule_name,
+            "mode": "Simulated Sandbox",
+            "simulated": True
+        }
+        
     try:
-        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=8)
+        # Safe execution: shell=False with argument list
+        proc = subprocess.run(args_list, shell=False, capture_output=True, text=True, timeout=8)
         stdout_txt = proc.stdout.strip()
         stderr_txt = proc.stderr.strip()
-        success = (proc.returncode == 0)
+        combined_out = f"{stdout_txt} {stderr_txt}".strip()
+        success = (proc.returncode == 0) and ("ok" in stdout_txt.lower() or len(stderr_txt) == 0)
+        
         return {
             "success": success,
             "returncode": proc.returncode,
             "stdout": stdout_txt,
             "stderr": stderr_txt,
-            "status_message": "Firewall rule successfully removed" if success else "Rule rollback completed",
-            "command": cmd,
-            "rule_name": rule_spec["rule_name"],
-            "mode": "Windows Defender Netsh"
+            "status_message": "Firewall rule successfully removed from OS" if success else f"Rollback failed: {combined_out}",
+            "command": cmd_display,
+            "rule_name": rule_name,
+            "mode": "Windows Defender Netsh",
+            "simulated": False
         }
     except Exception as e:
         return {
@@ -249,9 +375,10 @@ def remove_firewall_rule(ip_str: str) -> dict:
             "stdout": "",
             "stderr": str(e),
             "status_message": f"Rollback error: {str(e)}",
-            "command": cmd,
-            "rule_name": rule_spec["rule_name"],
-            "mode": "Windows Defender Netsh"
+            "command": cmd_display,
+            "rule_name": rule_name,
+            "mode": "Windows Defender Netsh",
+            "simulated": False
         }
 
 def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
@@ -408,7 +535,16 @@ def prepare_feature_row(data: dict) -> pd.DataFrame:
     """Prepares and normalizes input data vector matching training features."""
     load_all_artifacts()
     
-    # Fill defaults from UNSW-NB15 schema
+    # Standard baseline defaults from UNSW-NB15 normal operating baseline
+    baseline_defaults = {
+        "sttl": 64.0, "dttl": 64.0, "tcprtt": 25.0, "synack": 11.0, "ackdat": 14.0,
+        "sload": 2000.0, "dload": 5000.0, "spkts": 10.0, "dpkts": 12.0, "dur": 0.5,
+        "rate": 20.0, "sbytes": 500.0, "dbytes": 1000.0, "sloss": 0.0, "dloss": 0.0,
+        "sinpkt": 25.0, "dinpkt": 25.0, "ct_state_ttl": 2.0, "ct_srv_src": 2.0,
+        "ct_dst_ltm": 2.0, "ct_src_dport_ltm": 1.0, "connection_count": 1.0,
+        "failed_login_count": 0.0, "unique_port_count": 1.0
+    }
+    
     row = {}
     for col in NUMERICAL_FEATURES:
         val = data.get(col)
@@ -426,11 +562,11 @@ def prepare_feature_row(data: dict) -> pd.DataFrame:
             elif col == "rate":
                 val = data.get("event_frequency", 1.0)
             else:
-                val = 0.0
+                val = baseline_defaults.get(col, 0.0)
         try:
             row[col] = float(val)
         except (ValueError, TypeError):
-            row[col] = 0.0
+            row[col] = baseline_defaults.get(col, 0.0)
         
     proto = str(data.get("proto", "tcp")).strip().lower()
     service = str(data.get("service", "-")).strip().lower()
@@ -649,7 +785,7 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
     is_whitelisted = is_src_whitelisted
     whitelist_reason = src_reason if is_src_whitelisted else (dst_reason if is_dst_whitelisted else "")
     
-    if is_whitelisted and action_code == "BLOCK_IP":
+    if is_whitelisted and action_code in ["BLOCK_IP", "RATE_LIMIT_IP"]:
         if src_ip in TRUSTED_WHITELIST_IPS:
             recommended_action = f"Quarantine Prevented: {src_ip} is Critical Infrastructure ({whitelist_reason})"
             action_code = "WHITELIST_PROTECTED"

@@ -1,8 +1,12 @@
 {
   "dataset": {
-    "name": "UNSW-NB15 / CICIDS2017 Sampled Benchmark",
+    "name": "Synthetic Network Intrusion Benchmark (modeled after UNSW-NB15 / CICIDS2017 distributions)",
+    "data_type": "Synthetic / Simulated Benchmark",
+    "benchmark_note": "Dataset is synthetically generated with statistical distributions modeled after UNSW-NB15 and CICIDS2017. High metric scores reflect performance on this synthetic evaluation set and do not establish guaranteed operational efficacy on heterogeneous real-world production networks.",
     "total_samples": 10000,
-    "train_samples": 23100,
+    "original_train_samples": 7000,
+    "smote_resampled_train_samples": 23100,
+    "validation_samples": 1500,
     "test_samples": 1500,
     "classes": [
       "Botnet",
@@ -16,7 +20,7 @@
     "data_leakage_safeguards": {
       "split_strategy": "Stratified 3-way hold-out (70% Train, 15% Val, 15% Independent Test)",
       "scaler_fit": "Train split only (zero leakage)",
-      "smote_applied": "Train split only",
+      "smote_applied": "Train split only (categorical levels snapped to discrete states)",
       "duplicates_removed": 0
     }
   },

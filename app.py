@@ -210,11 +210,14 @@ def save_persisted_state():
         }
         with open(STATE_FILE, "w") as f:
             json.dump(data, f, indent=2)
-    except Exception:
-        pass
+        st.session_state.persistence_error = None
+        return True
+    except Exception as e:
+        st.session_state.persistence_error = str(e)
+        return False
 
 def check_and_purge_expired_quarantines():
-    """Purges expired quarantined IP addresses based on 1-hour TTL lease."""
+    """Purges expired quarantined IP addresses based on 1-hour TTL lease with rigorous error checking."""
     now = time.time()
     expired_ips = []
     for ip, meta in list(st.session_state.blocklist.items()):
@@ -225,17 +228,41 @@ def check_and_purge_expired_quarantines():
                 expired_ips.append(ip)
                 
     for ip in expired_ips:
-        if st.session_state.enforcement_backend.startswith("Windows Defender"):
-            inference.remove_firewall_rule(ip)
-        del st.session_state.blocklist[ip]
-        st.session_state.audit_logs.insert(0, {
-            "timestamp": time.strftime("%H:%M:%S"),
-            "action": "QUARANTINE_EXPIRED",
-            "target": ip,
-            "actor": "TTL Decay Daemon",
-            "reason": "1-Hour quarantine lease expired. IP address automatically released from blocklist.",
-            "result": "SUCCESS"
-        })
+        backend_is_real = st.session_state.get("enforcement_backend", "").startswith("Windows Defender")
+        if backend_is_real:
+            rem_res = inference.remove_firewall_rule(ip, simulate_safe=False)
+            if rem_res.get("success", False):
+                del st.session_state.blocklist[ip]
+                st.session_state.audit_logs.insert(0, {
+                    "timestamp": time.strftime("%H:%M:%S"),
+                    "action": "QUARANTINE_EXPIRED",
+                    "target": ip,
+                    "actor": "TTL Decay Daemon (Real Host Netsh)",
+                    "reason": "1-Hour quarantine lease expired. Host OS firewall rule successfully removed.",
+                    "result": "SUCCESS"
+                })
+            else:
+                # Do not falsely claim success if OS rule deletion failed
+                st.session_state.audit_logs.insert(0, {
+                    "timestamp": time.strftime("%H:%M:%S"),
+                    "action": "QUARANTINE_EXPIRY_ERROR",
+                    "target": ip,
+                    "actor": "TTL Decay Daemon (Real Host Netsh)",
+                    "reason": f"1-Hour lease expired but host firewall removal failed: {rem_res.get('status_message')}",
+                    "result": "FAILURE"
+                })
+        else:
+            # Simulated Sandbox mode: guaranteed safe removal in software memory
+            rem_res = inference.remove_firewall_rule(ip, simulate_safe=True)
+            del st.session_state.blocklist[ip]
+            st.session_state.audit_logs.insert(0, {
+                "timestamp": time.strftime("%H:%M:%S"),
+                "action": "QUARANTINE_EXPIRED",
+                "target": ip,
+                "actor": "TTL Decay Daemon (Simulated Sandbox)",
+                "reason": "1-Hour quarantine lease expired. IP released from simulated blocklist.",
+                "result": "SUCCESS"
+            })
     if expired_ips:
         save_persisted_state()
     return expired_ips
@@ -396,11 +423,18 @@ def process_stream_batch(batch_df: pd.DataFrame, batch_label: str, source_type: 
                 rule_spec = res.get("firewall_rule_specs", {})
                 
                 if backend_is_real:
-                    exec_res = inference.execute_firewall_rule(src_ip)
-                    block_status = "BLOCKED (Real OS Netsh)" if exec_res["success"] else "BLOCKED (Sandbox Fallback - Admin Required)"
+                    exec_res = inference.execute_firewall_rule(src_ip, simulate_safe=False)
+                    if exec_res.get("success"):
+                        block_status = "BLOCKED (Real OS Netsh)"
+                        res_outcome = "SUCCESS"
+                    else:
+                        block_status = "BLOCKED (Sandbox Fallback - Admin Required)"
+                        res_outcome = "FAILURE (Fallback to Sandbox)"
                     mode_desc = "Windows Defender Netsh"
                 else:
-                    block_status = "BLOCKED (Sandbox)"
+                    exec_res = inference.execute_firewall_rule(src_ip, simulate_safe=True)
+                    block_status = "BLOCKED (Simulated Sandbox)"
+                    res_outcome = "SUCCESS"
                     mode_desc = "Simulated Sandbox"
                     
                 st.session_state.blocklist[src_ip] = {
@@ -422,8 +456,8 @@ def process_stream_batch(batch_df: pd.DataFrame, batch_label: str, source_type: 
                         "action": "IP_QUARANTINED",
                         "target": src_ip,
                         "actor": f"Autonomous Mitigation ({mode_desc})",
-                        "reason": f"{risk_lvl} severity threat {res['predicted_threat']} detected (Score: {res['risk_score']}).",
-                        "result": "SUCCESS"
+                        "reason": f"{risk_lvl} severity threat {res['predicted_threat']} detected (Score: {res['risk_score']}). Status: {res_outcome}",
+                        "result": "SUCCESS" if "SUCCESS" in res_outcome else "FAILURE"
                     })
             else: # Human-in-the-Loop
                 if src_ip not in st.session_state.blocklist or not st.session_state.blocklist[src_ip]["status"].startswith("BLOCKED"):
@@ -803,21 +837,32 @@ elif nav_page == "Mitigation & Firewall":
                 if st.button("✅ Authorize Block", key=f"t4_app_{p_ip}", width="stretch"):
                     backend_is_real = st.session_state.enforcement_backend.startswith("Windows Defender")
                     if backend_is_real:
-                        exec_res = inference.execute_firewall_rule(p_ip)
-                        p_meta["status"] = "BLOCKED (Real OS Netsh)" if exec_res["success"] else "BLOCKED (Sandbox Fallback - Admin Required)"
+                        exec_res = inference.execute_firewall_rule(p_ip, simulate_safe=False)
+                        if exec_res.get("success"):
+                            p_meta["status"] = "BLOCKED (Real OS Netsh)"
+                            res_outcome = "SUCCESS"
+                            st.success(f"Quarantine approved and OS firewall rule created for {p_ip}.")
+                        else:
+                            p_meta["status"] = "BLOCKED (Sandbox Fallback - Admin Required)"
+                            res_outcome = "FAILURE (Fallback to Sandbox)"
+                            st.warning(f"OS Firewall rule failed: {exec_res.get('status_message')}. Falling back to sandbox quarantine.")
+                        actor_desc = "SOC Security Analyst (Real Host Netsh)"
                     else:
-                        p_meta["status"] = "BLOCKED (Sandbox)"
+                        exec_res = inference.execute_firewall_rule(p_ip, simulate_safe=True)
+                        p_meta["status"] = "BLOCKED (Simulated Sandbox)"
+                        res_outcome = "SUCCESS"
+                        actor_desc = "SOC Security Analyst (Simulated Sandbox)"
+                        st.success(f"Quarantine approved in simulated sandbox for {p_ip}.")
                         
                     st.session_state.audit_logs.insert(0, {
                         "timestamp": time.strftime("%H:%M:%S"),
                         "action": "ANALYST_APPROVED_BLOCK",
                         "target": p_ip,
-                        "actor": "SOC Security Analyst",
-                        "reason": f"Analyst authorized firewall quarantine for {p_meta.get('threat')}.",
-                        "result": "SUCCESS"
+                        "actor": actor_desc,
+                        "reason": f"Analyst authorized quarantine for {p_meta.get('threat')} ({res_outcome}).",
+                        "result": "SUCCESS" if "SUCCESS" in res_outcome else "FAILURE"
                     })
                     save_persisted_state()
-                    st.success(f"Quarantine approved for {p_ip}.")
                     st.rerun()
             with pbox3:
                 if st.button("❌ Dismiss Alert", key=f"t4_rej_{p_ip}", width="stretch"):
@@ -878,19 +923,45 @@ elif nav_page == "Mitigation & Firewall":
             btn_unblock_col1, btn_unblock_col2 = st.columns([1, 1])
             with btn_unblock_col1:
                 if st.button(f"🔓 Release IP {unblock_ip}", width="stretch"):
-                    if st.session_state.enforcement_backend.startswith("Windows Defender"):
-                        inference.remove_firewall_rule(unblock_ip)
-                    del st.session_state.blocklist[unblock_ip]
-                    st.session_state.audit_logs.insert(0, {
-                        "timestamp": time.strftime("%H:%M:%S"),
-                        "action": "MANUAL_UNBLOCK",
-                        "target": unblock_ip,
-                        "actor": "SOC Security Analyst",
-                        "reason": "Security analyst manual release from active firewall blocklist.",
-                        "result": "SUCCESS"
-                    })
-                    save_persisted_state()
-                    st.success(f"IP {unblock_ip} unblocked and restored to communication.")
+                    backend_is_real = st.session_state.enforcement_backend.startswith("Windows Defender")
+                    if backend_is_real:
+                        rem_res = inference.remove_firewall_rule(unblock_ip, simulate_safe=False)
+                        if rem_res.get("success", False):
+                            del st.session_state.blocklist[unblock_ip]
+                            st.session_state.audit_logs.insert(0, {
+                                "timestamp": time.strftime("%H:%M:%S"),
+                                "action": "MANUAL_UNBLOCK",
+                                "target": unblock_ip,
+                                "actor": "SOC Security Analyst (Real Host Netsh)",
+                                "reason": "Security analyst manual release from active host firewall blocklist.",
+                                "result": "SUCCESS"
+                            })
+                            save_persisted_state()
+                            st.success(f"IP {unblock_ip} unblocked and firewall rule removed from OS.")
+                        else:
+                            st.session_state.audit_logs.insert(0, {
+                                "timestamp": time.strftime("%H:%M:%S"),
+                                "action": "MANUAL_UNBLOCK_FAILED",
+                                "target": unblock_ip,
+                                "actor": "SOC Security Analyst (Real Host Netsh)",
+                                "reason": f"Failed to remove OS firewall rule: {rem_res.get('status_message')}",
+                                "result": "FAILURE"
+                            })
+                            save_persisted_state()
+                            st.error(f"Failed to unblock {unblock_ip}: {rem_res.get('status_message')}")
+                    else:
+                        rem_res = inference.remove_firewall_rule(unblock_ip, simulate_safe=True)
+                        del st.session_state.blocklist[unblock_ip]
+                        st.session_state.audit_logs.insert(0, {
+                            "timestamp": time.strftime("%H:%M:%S"),
+                            "action": "MANUAL_UNBLOCK",
+                            "target": unblock_ip,
+                            "actor": "SOC Security Analyst (Simulated Sandbox)",
+                            "reason": "Security analyst manual release from simulated quarantine blocklist.",
+                            "result": "SUCCESS"
+                        })
+                        save_persisted_state()
+                        st.success(f"IP {unblock_ip} released from simulated quarantine.")
                     st.rerun()
 
             with btn_unblock_col2:
@@ -898,10 +969,11 @@ elif nav_page == "Mitigation & Firewall":
                     st.code(rule_spec["netsh_command"], language="bash")
                     st.caption("PowerShell: `" + rule_spec["powershell_command"] + "`")
                     if st.button("Test Command Execution", key="btn_test_netsh", width="stretch"):
-                        test_res = inference.execute_firewall_rule(unblock_ip)
+                        backend_is_real = st.session_state.enforcement_backend.startswith("Windows Defender")
+                        test_res = inference.execute_firewall_rule(unblock_ip, simulate_safe=not backend_is_real)
                         if test_res["success"]:
                             st.success(f"Execution OK: {test_res['status_message']}")
-                        elif test_res["requires_elevation"]:
+                        elif test_res.get("requires_elevation"):
                             st.warning(f"OS Status: {test_res['status_message']}")
                         else:
                             st.error(f"Error: {test_res['status_message']}")
