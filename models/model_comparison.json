@@ -1,0 +1,367 @@
+{
+  "dataset": {
+    "name": "UNSW-NB15 / CICIDS2017 Sampled Benchmark",
+    "total_samples": 10000,
+    "train_samples": 23100,
+    "test_samples": 1500,
+    "classes": [
+      "Botnet",
+      "Brute Force",
+      "DoS/DDoS",
+      "Exploits",
+      "Normal",
+      "Port Scan"
+    ],
+    "features_count": 27,
+    "data_leakage_safeguards": {
+      "split_strategy": "Stratified 3-way hold-out (70% Train, 15% Val, 15% Independent Test)",
+      "scaler_fit": "Train split only (zero leakage)",
+      "smote_applied": "Train split only",
+      "duplicates_removed": 0
+    }
+  },
+  "target_f1_score": 0.9,
+  "latency_threshold_ms": 100.0,
+  "models": {
+    "random_forest": {
+      "name": "Random Forest Classifier",
+      "type": "Supervised Ensemble (Bagging)",
+      "accuracy": 0.9893,
+      "precision_weighted": 0.9891,
+      "recall_weighted": 0.9893,
+      "f1_score_weighted": 0.9891,
+      "precision_macro": 0.9876,
+      "recall_macro": 0.9725,
+      "f1_score_macro": 0.9796,
+      "false_positive_rate": 0.0048,
+      "roc_auc": 0.9995,
+      "brier_score": 0.0207,
+      "prediction_latency_ms": 0.046,
+      "train_time_sec": 1.31,
+      "confusion_matrix": [
+        [
+          75,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          120,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          225,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          63,
+          12,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          4,
+          821,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          180
+        ]
+      ],
+      "per_class_metrics": {
+        "Botnet": {
+          "support": 75,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 75,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1425
+        },
+        "Brute Force": {
+          "support": 120,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 120,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1380
+        },
+        "DoS/DDoS": {
+          "support": 225,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 225,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1275
+        },
+        "Exploits": {
+          "support": 75,
+          "precision": 0.9403,
+          "recall": 0.84,
+          "f1_score": 0.8873,
+          "false_positive_rate": 0.0028,
+          "false_negative_rate": 0.16,
+          "true_positives": 63,
+          "false_positives": 4,
+          "false_negatives": 12,
+          "true_negatives": 1421
+        },
+        "Normal": {
+          "support": 825,
+          "precision": 0.9856,
+          "recall": 0.9952,
+          "f1_score": 0.9904,
+          "false_positive_rate": 0.0178,
+          "false_negative_rate": 0.0048,
+          "true_positives": 821,
+          "false_positives": 12,
+          "false_negatives": 4,
+          "true_negatives": 663
+        },
+        "Port Scan": {
+          "support": 180,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 180,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1320
+        }
+      },
+      "meets_f1_target": true,
+      "meets_latency_target": true
+    },
+    "xgboost": {
+      "name": "XGBoost Classifier",
+      "type": "Supervised Gradient Boosting",
+      "accuracy": 0.9993,
+      "precision_weighted": 0.9993,
+      "recall_weighted": 0.9993,
+      "f1_score_weighted": 0.9993,
+      "precision_macro": 0.9978,
+      "recall_macro": 0.9998,
+      "f1_score_macro": 0.9988,
+      "false_positive_rate": 0.0012,
+      "roc_auc": 1.0,
+      "brier_score": 0.0012,
+      "prediction_latency_ms": 0.008,
+      "train_time_sec": 1.65,
+      "confusion_matrix": [
+        [
+          75,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          120,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          225,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          75,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
+          824,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          180
+        ]
+      ],
+      "per_class_metrics": {
+        "Botnet": {
+          "support": 75,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 75,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1425
+        },
+        "Brute Force": {
+          "support": 120,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 120,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1380
+        },
+        "DoS/DDoS": {
+          "support": 225,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 225,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1275
+        },
+        "Exploits": {
+          "support": 75,
+          "precision": 0.9868,
+          "recall": 1.0,
+          "f1_score": 0.9934,
+          "false_positive_rate": 0.0007,
+          "false_negative_rate": 0.0,
+          "true_positives": 75,
+          "false_positives": 1,
+          "false_negatives": 0,
+          "true_negatives": 1424
+        },
+        "Normal": {
+          "support": 825,
+          "precision": 1.0,
+          "recall": 0.9988,
+          "f1_score": 0.9994,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0012,
+          "true_positives": 824,
+          "false_positives": 0,
+          "false_negatives": 1,
+          "true_negatives": 675
+        },
+        "Port Scan": {
+          "support": 180,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1_score": 1.0,
+          "false_positive_rate": 0.0,
+          "false_negative_rate": 0.0,
+          "true_positives": 180,
+          "false_positives": 0,
+          "false_negatives": 0,
+          "true_negatives": 1320
+        }
+      },
+      "meets_f1_target": true,
+      "meets_latency_target": true
+    },
+    "isolation_forest": {
+      "name": "Isolation Forest",
+      "type": "Unsupervised Anomaly Detection",
+      "accuracy": 0.7887,
+      "precision": 0.8792,
+      "recall": 0.6148,
+      "f1_score": 0.7236,
+      "false_positive_rate": 0.0691,
+      "roc_auc": 0.8805,
+      "prediction_latency_ms": 0.02,
+      "train_time_sec": 0.33,
+      "meets_latency_target": true
+    }
+  },
+  "feature_importance": [
+    {
+      "feature": "dbytes",
+      "importance": 0.1179
+    },
+    {
+      "feature": "failed_login_count",
+      "importance": 0.1025
+    },
+    {
+      "feature": "sbytes",
+      "importance": 0.0922
+    },
+    {
+      "feature": "spkts",
+      "importance": 0.089
+    },
+    {
+      "feature": "dttl",
+      "importance": 0.0859
+    },
+    {
+      "feature": "ct_dst_ltm",
+      "importance": 0.048
+    },
+    {
+      "feature": "connection_count",
+      "importance": 0.0453
+    },
+    {
+      "feature": "dinpkt",
+      "importance": 0.0434
+    },
+    {
+      "feature": "ct_src_dport_ltm",
+      "importance": 0.042
+    },
+    {
+      "feature": "synack",
+      "importance": 0.0415
+    }
+  ],
+  "generated_at": "2026-10-11 18:52:48"
+}
