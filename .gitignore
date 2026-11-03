@@ -36,3 +36,6 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# Runtime SOC State
+data/soc_state.json*
