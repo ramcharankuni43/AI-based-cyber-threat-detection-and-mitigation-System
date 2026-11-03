@@ -1,5 +1,20 @@
 import os
 import sys
+
+# Auto-launcher: if user executes `python app.py` directly from terminal instead of `streamlit run app.py`
+if __name__ == "__main__":
+    try:
+        from streamlit.runtime import exists as _st_exists
+        if not _st_exists():
+            import subprocess
+            print("\n[*] Starting Streamlit SOC Dashboard on http://localhost:8501 ...")
+            print("[*] (Running command: streamlit run app.py)\n")
+            cmd = [sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)] + sys.argv[1:]
+            subprocess.run(cmd)
+            sys.exit(0)
+    except Exception:
+        pass
+
 import time
 import json
 import datetime
@@ -294,7 +309,7 @@ if st.session_state.authenticated_user is None:
 
     st.stop()
 
-cur_user = st.session_state.authenticated_user
+cur_user = st.session_state.get("authenticated_user") or {}
 cur_role = cur_user.get("role", "analyst")
 
 # Periodic TTL purge check

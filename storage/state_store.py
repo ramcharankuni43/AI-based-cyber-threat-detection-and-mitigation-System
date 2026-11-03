@@ -30,8 +30,8 @@ class StateStore:
                         data = json.load(f)
                         if isinstance(data, dict):
                             return self._sanitize_loaded_state(data)
-                except Exception as e:
-                    print(f"[!] Warning: Primary state file corrupted ({e}). Attempting backup recovery...")
+                except Exception:
+                    pass
 
             # 2. Try backup recovery file
             if os.path.exists(self.backup_file_path):
@@ -39,10 +39,9 @@ class StateStore:
                     with open(self.backup_file_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         if isinstance(data, dict):
-                            print("[+] Successfully recovered state from backup file.")
                             return self._sanitize_loaded_state(data)
-                except Exception as e:
-                    print(f"[!] Warning: Backup state file also invalid ({e}).")
+                except Exception:
+                    pass
 
             # 3. Clean fallback defaults
             return self._default_state()
