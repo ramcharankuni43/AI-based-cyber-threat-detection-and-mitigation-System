@@ -1,6 +1,5 @@
 import os
 import time
-import subprocess
 import ipaddress
 
 # Whitelist of Trusted Protected Specific IPs (Critical Infrastructure)
@@ -103,7 +102,7 @@ def is_safe_to_block_ip(ip_str: str) -> tuple[bool, str]:
 
 def generate_firewall_rule(ip_str: str, direction: str = "inbound") -> dict:
     """
-    Generates sanitized Windows Defender Firewall rule specifications.
+    Generates sanitized Windows Defender Firewall rule specifications for academic/demonstration audit.
     Performs strict safety checks to prevent self-lockout or command injection.
     """
     try:
@@ -159,25 +158,13 @@ def generate_firewall_rule(ip_str: str, direction: str = "inbound") -> dict:
         "rollback_args": rollback_args
     }
 
-def verify_firewall_rule_exists(rule_name: str) -> bool:
-    """Queries netsh to verify if a firewall rule is physically registered on host OS."""
-    try:
-        proc = subprocess.run(
-            ["netsh", "advfirewall", "firewall", "show", "rule", f"name={rule_name}"],
-            capture_output=True,
-            text=True,
-            shell=False,
-            timeout=5
-        )
-        return (proc.returncode == 0) and ("rule name:" in proc.stdout.lower() or rule_name.lower() in proc.stdout.lower())
-    except Exception:
-        return False
-
 def execute_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
     """
-    Applies firewall quarantine rule.
-    - simulate_safe=True: Safe Sandbox Lab mode (no changes to host OS firewall).
-    - simulate_safe=False: Executes netsh rule with verified rule existence check.
+    Applies SIMULATED firewall quarantine rule.
+    Guaranteed 100% Safe Demo Mode:
+    - Never calls OS netsh or subprocess
+    - Never alters host OS firewall or network stack
+    - Quarantines the malicious IP in software memory & persisted state
     """
     rule_spec = generate_firewall_rule(ip_str)
     if not rule_spec.get("valid", False):
@@ -190,80 +177,32 @@ def execute_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
             "status_message": f"Validation Error: {rule_spec.get('error')}",
             "command": "",
             "rule_name": "",
-            "mode": "Simulated Sandbox" if simulate_safe else "Windows Defender Netsh",
-            "simulated": simulate_safe
+            "mode": "Simulated Mitigation (Safe Demo Mode)",
+            "simulated": True
         }
         
     valid_ip = rule_spec["ip"]
     rule_name = rule_spec["rule_name"]
     cmd_display = rule_spec["netsh_command"]
-    args_list = rule_spec["netsh_args"]
 
-    if simulate_safe:
-        return {
-            "success": True,
-            "requires_elevation": False,
-            "returncode": 0,
-            "stdout": f"[SIMULATED_LAB] Rule {rule_name} added for IP {valid_ip} in software memory.",
-            "stderr": "",
-            "status_message": f"Simulated Quarantine Active: Traffic from {valid_ip} dropped in memory (Host OS unmodified)",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Simulated Sandbox",
-            "simulated": True
-        }
-
-    try:
-        proc = subprocess.run(args_list, shell=False, capture_output=True, text=True, timeout=8)
-        stdout_txt = proc.stdout.strip()
-        stderr_txt = proc.stderr.strip()
-        combined_out = f"{stdout_txt} {stderr_txt}".strip()
-
-        requires_elevation = "requires elevation" in combined_out.lower() or "administrator" in combined_out.lower()
-        cmd_ok = (proc.returncode == 0) and ("ok." in stdout_txt.lower() or "ok" in stdout_txt.lower())
-
-        # Post-execution verification
-        rule_verified = verify_firewall_rule_exists(rule_name) if cmd_ok else False
-        success = cmd_ok and rule_verified
-
-        if success:
-            status_msg = f"Successfully committed and verified in Windows Defender Firewall ({rule_name})"
-        elif requires_elevation:
-            status_msg = "Elevation required: Run terminal as Administrator to enforce OS rule"
-        elif cmd_ok and not rule_verified:
-            status_msg = "Command completed but netsh rule verification failed"
-        else:
-            status_msg = f"Command failed: {combined_out}"
-
-        return {
-            "success": success,
-            "requires_elevation": requires_elevation,
-            "returncode": proc.returncode,
-            "stdout": stdout_txt,
-            "stderr": stderr_txt,
-            "status_message": status_msg,
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "requires_elevation": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": str(e),
-            "status_message": f"Execution error: {str(e)}",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }
+    # 100% Safe Simulated Mitigation
+    return {
+        "success": True,
+        "requires_elevation": False,
+        "returncode": 0,
+        "stdout": f"[SIMULATED_MITIGATION] Rule {rule_name} active for IP {valid_ip} in software state.",
+        "stderr": "",
+        "status_message": f"Simulated Quarantine Active: Traffic from {valid_ip} dropped in software memory (Host OS unmodified).",
+        "command": cmd_display,
+        "rule_name": rule_name,
+        "mode": "Simulated Mitigation (Safe Demo Mode)",
+        "simulated": True
+    }
 
 def remove_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
     """
-    Deletes or simulates deletion of Windows Defender firewall rule with rollback verification.
+    Releases SIMULATED quarantine rule.
+    Safe software state removal without host OS firewall modification.
     """
     rule_spec = generate_firewall_rule(ip_str)
     if not rule_spec.get("valid", False):
@@ -275,60 +214,30 @@ def remove_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
             "status_message": f"Validation Error: {rule_spec.get('error')}",
             "command": "",
             "rule_name": "",
-            "mode": "Simulated Sandbox" if simulate_safe else "Windows Defender Netsh",
-            "simulated": simulate_safe
+            "mode": "Simulated Mitigation (Safe Demo Mode)",
+            "simulated": True
         }
 
     valid_ip = rule_spec["ip"]
     rule_name = rule_spec["rule_name"]
     cmd_display = rule_spec["rollback_command"]
-    args_list = rule_spec["rollback_args"]
 
-    if simulate_safe:
-        return {
-            "success": True,
-            "returncode": 0,
-            "stdout": f"[SIMULATED_LAB] Rule {rule_name} removed for IP {valid_ip}.",
-            "stderr": "",
-            "status_message": f"Simulated Quarantine Released: IP {valid_ip} unblocked in memory.",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Simulated Sandbox",
-            "simulated": True
-        }
+    return {
+        "success": True,
+        "returncode": 0,
+        "stdout": f"[SIMULATED_MITIGATION] Rule {rule_name} released for IP {valid_ip}.",
+        "stderr": "",
+        "status_message": f"Simulated Quarantine Released: IP {valid_ip} unblocked in software memory.",
+        "command": cmd_display,
+        "rule_name": rule_name,
+        "mode": "Simulated Mitigation (Safe Demo Mode)",
+        "simulated": True
+    }
 
-    try:
-        proc = subprocess.run(args_list, shell=False, capture_output=True, text=True, timeout=8)
-        stdout_txt = proc.stdout.strip()
-        stderr_txt = proc.stderr.strip()
-        combined_out = f"{stdout_txt} {stderr_txt}".strip()
+def verify_firewall_rule_exists(rule_name: str, check_real_os: bool = False) -> bool:
+    """
+    Verification check for active quarantine rule.
+    In Safe Demo Mode, returns False for host OS since host rules are never modified.
+    """
+    return False
 
-        # Check deletion
-        still_exists = verify_firewall_rule_exists(rule_name)
-        success = (proc.returncode == 0) and not still_exists
-
-        return {
-            "success": success,
-            "returncode": proc.returncode,
-            "stdout": stdout_txt,
-            "stderr": stderr_txt,
-            "status_message": "Firewall rule successfully deleted and verified" if success else (
-                f"Rule still detected in firewall table after deletion attempt: {combined_out}"
-            ),
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": str(e),
-            "status_message": f"Rollback error: {str(e)}",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }

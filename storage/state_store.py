@@ -58,6 +58,7 @@ class StateStore:
             try:
                 payload = {
                     "blocklist": state_data.get("blocklist", {}),
+                    "incidents": state_data.get("incidents", [])[:200],
                     "audit_logs": state_data.get("audit_logs", [])[:200],
                     "total_flows_processed": int(state_data.get("total_flows_processed", 0)),
                     "blocked_traffic_drops": int(state_data.get("blocked_traffic_drops", 0)),
@@ -103,6 +104,7 @@ class StateStore:
     def _sanitize_loaded_state(self, data: dict) -> dict:
         return {
             "blocklist": data.get("blocklist", {}) if isinstance(data.get("blocklist"), dict) else {},
+            "incidents": data.get("incidents", []) if isinstance(data.get("incidents"), list) else [],
             "audit_logs": data.get("audit_logs", []) if isinstance(data.get("audit_logs"), list) else [],
             "total_flows_processed": int(data.get("total_flows_processed", 0)),
             "blocked_traffic_drops": int(data.get("blocked_traffic_drops", 0)),
@@ -112,6 +114,7 @@ class StateStore:
     def _default_state(self) -> dict:
         return {
             "blocklist": {},
+            "incidents": [],
             "audit_logs": [],
             "total_flows_processed": 0,
             "blocked_traffic_drops": 0,

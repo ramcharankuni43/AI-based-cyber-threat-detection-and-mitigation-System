@@ -1,23 +1,31 @@
 # AI-Based Network Intrusion Detection & Automated Mitigation System
 
-** • Computer Science / Cybersecurity**  
-*Machine Learning • Explainable AI (SHAP) • MITRE ATT&CK Framework • Automated Firewall Quarantine*
+**B.Tech Computer Science / Cybersecurity Capstone Project**  
+*Machine Learning (Random Forest, XGBoost, Isolation Forest) • Explainable AI (SHAP) • MITRE ATT&CK Framework • Simulated Firewall Quarantine*
 
 ---
 
-## 🌟 Quick Start (1 Click)
+## 🌟 Quick Start (Run in 1 Click)
 
-Run the project with a single command or double-click:
+Run the project with a single command or double-click launcher:
 
 ### Option 1: Double-Click Launcher (Windows)
 Double-click **`run.bat`** (or right-click `run.ps1` -> Run with PowerShell).
 
 ### Option 2: Terminal Command
 ```bash
-python -m streamlit run app.py
+# 1. Install dependencies (if not already installed)
+pip install -r requirements.txt
+
+# 2. Launch the Streamlit SOC application
+streamlit run app.py
 ```
 > The interactive SOC Dashboard will automatically open in your browser at:  
-> **👉 http://localhost:8501**
+> **👉 http://localhost:8501**  
+>
+> **Default Credentials:**
+> - **Administrator:** Username: `admin` | Password: `admin123` *(Full access: retraining, state reset)*
+> - **SOC Analyst:** Username: `analyst` | Password: `analyst123` *(Triage access: investigation, mitigation)*
 
 ---
 
@@ -28,26 +36,27 @@ The application is structured into decoupled presentation, service, persistence,
 ```text
 cyber/
 │
-├── app.py                   # 🖥️ Interactive SOC Web Dashboard (Streamlit)
-├── inference.py             # ⚡ Real-Time ML Decision Engine, SHAP XAI & Risk Scoring
+├── app.py                   # 🖥️ Interactive Streamlit SOC Web Application (5 Core Sections)
+├── inference.py             # ⚡ Real-Time ML Decision Engine, Schema Validator, SHAP XAI & Risk Scoring
 ├── model_trainer.py         # 🧠 Model Training Pipeline (SMOTE, RF, XGBoost, Isolation Forest)
-├── data_generator.py        # 📊 Synthetic Benchmark & Replay Traffic Generator
+├── data_generator.py        # 📊 Synthetic Benchmark & Scenario Replay Traffic Generator
+├── test_suite.py            # 🧪 Automated Test Suite (10 Comprehensive Unit Tests)
 │
 ├── storage/                 # 💾 Durable Persistence Layer
-│   └── state_store.py       # Thread-safe atomic file writes (os.replace) & fail-safe .bak backup
+│   └── state_store.py       # Thread-safe atomic file writes (os.replace) & fail-safe .bak recovery
 │
 ├── services/                # ⚙️ Decoupled Business Logic Services
-│   ├── auth_service.py      # SOC Authentication & Role-Based Access Control (Admin / Analyst RBAC)
-│   ├── mitigation_service.py # Firewall rule generation, Netsh verification & safe IP allowlist
-│   └── alert_service.py     # Telemetry batch ingestion, TTL purge daemon & compliance audit logs
+│   ├── auth_service.py      # Multi-role authentication & RBAC (Admin / Analyst with SHA-256)
+│   ├── mitigation_service.py# Safe simulated quarantine, syntax generator & allowlist protection
+│   └── alert_service.py     # Telemetry stream ingestion, incident lifecycle & audit trail
 │
 ├── data/                    # 📁 Datasets & Simulation Traffic CSVs
 │   ├── unsw_nb15_sample.csv # Benchmark training & testing dataset
 │   ├── normal.csv           # Benign baseline traffic
-│   ├── ddos.csv             # Distributed Denial-of-Service attack flows
+│   ├── ddos.csv             # Volumetric DoS/DDoS attack flows
 │   ├── portscan.csv         # Network reconnaissance port scans
 │   ├── bruteforce.csv       # SSH/HTTP credential brute force attacks
-│   └── soc_state.json       # Persistent blocklist and compliance audit state
+│   └── soc_state.json       # Persistent blocklist, incidents, and compliance audit state
 │
 ├── models/                  # 🤖 Trained ML Artifacts (.joblib & metrics json)
 │   ├── random_forest_model.joblib
@@ -57,102 +66,132 @@ cyber/
 │   ├── label_encoder.joblib
 │   └── model_comparison.json
 │
-├── requirements.txt         # 📦 Minimal Python Dependencies
+├── requirements.txt         # 📦 Python Dependencies
 ├── run.bat                  # 🚀 1-Click Windows Batch Launcher
 ├── run.ps1                  # 🚀 1-Click PowerShell Launcher
-├── AI_Cyber_Threat_Mitigation_PRD.md # 📄 Formal Project Specification
 └── README.md                # 📖 Project Documentation & Viva Defense Guide
 ```
 
 ---
 
-## 🎯 What Each Python File Does (Simple Explanation)
+## 🖥️ The 5 Core Application Sections
 
-1. **`app.py` (Dashboard & SOC Console):**
-   - Built with Streamlit for a fast, responsive Security Operations Center interface.
-   - Organized into 5 core operational modules: **Overview Dashboard**, **Live Threat Monitoring**, **Threat Investigation (XAI)**, **Mitigation & Firewall Policy Enforcement**, and **Compliance Audit Logs**, plus a dedicated **Testing & Evaluation** lab area.
+The user interface has been streamlined into 5 dedicated sections tailored for third-year B.Tech evaluation:
 
-2. **`inference.py` (The AI Brain):**
-   - Receives network flow telemetry (IPs, packet counts, byte rates, durations, TCP flags).
-   - Classifies the flow using the primary supervised **Random Forest** engine.
-   - Uses **Isolation Forest** to compute an anomaly score (detecting zero-day anomalies).
-   - Computes **SHAP values** using `TreeExplainer` to explain *why* the AI flagged the packet.
-   - Calculates a standardized **0–100 Risk Score** (Low: 0-29.9, Medium: 30-59.9, High: 60-79.9, Critical: 80-100).
-   - Maps detected attacks to **MITRE ATT&CK** techniques (`T1498`, `T1046`, `T1110`, etc.).
-   - Triggers automated mitigation action: Log Only, Rate-Limit, or Automated Firewall IP Quarantine.
-
-3. **`model_trainer.py` (Training & Evaluation Pipeline):**
-   - Cleans the raw network traffic data (handles missing/infinite values, drops duplicates).
-   - Applies **SMOTE** (Synthetic Minority Over-sampling Technique) strictly to the training split to balance rare attack classes without leakage.
-   - Trains 3 models: **Random Forest**, **XGBoost**, and **Isolation Forest**.
-   - Evaluates on a 15% stratified independent hold-out test set, exporting accuracy, F1-score, precision, recall, false positive rate (FPR), ROC-AUC, and latency.
-
-4. **`data_generator.py` (Synthetic Benchmark Generator):**
-   - Generates realistic synthetic network traffic modeled on the official **UNSW-NB15** and **CICIDS2017** benchmark distributions with natural cross-class feature variance.
-   - Creates discrete scenario files for live demonstration (`normal.csv`, `ddos.csv`, `portscan.csv`, `bruteforce.csv`).
+| Section | Core Capabilities | Purpose |
+| :--- | :--- | :--- |
+| **1. Dashboard** | • Total traffic records<br>• Detected threats<br>• Normal traffic<br>• High-risk incidents<br>• Quarantined incidents<br>• Threat activity breakdown bar chart<br>• Recent security alerts feed | High-level situational awareness without visual clutter or duplicate widgets. |
+| **2. AI Detection** | • Attack scenario replay (Normal, DDoS, Port Scan, Brute Force)<br>• Quarantined IP drop verification<br>• Offline CSV dataset upload with schema validation<br>• Scientific ML model comparison (Random Forest vs XGBoost vs Isolation Forest) | Multi-class threat classification, unseen category handling, and empirical benchmark evaluation. |
+| **3. Incident Investigation** | • Structured incident records (`INC-XXXX`)<br>• Detection timestamp, source/dest IP, protocol, service<br>• Model confidence & calibrated 0–100 risk score<br>• Explainable AI (SHAP TreeExplainer feature attribution chart)<br>• MITRE ATT&CK framework technique alignment<br>• Lifecycle status transitions: `New` → `Investigating` → `Mitigated` / `Dismissed` | Deep root-cause investigation and analyst-driven incident response workflow. |
+| **4. Simulated Mitigation** | • Prominent **SIMULATED MITIGATION (Safe Demo Mode)** banner<br>• Active quarantined IP blocklist with sliding 60-minute TTL<br>• Manual release / unblock action<br>• Netsh and PowerShell firewall rule syntax inspection<br>• Protected infrastructure allowlist (`10.0.0.0/24`, `127.0.0.0/8`, `192.168.1.0/24`) | Verifiable threat containment in software state without modifying host OS security settings. |
+| **5. Reports & Audit History** | • Incident History table with CSV export<br>• Full Detection History with multi-criteria filters<br>• Mitigation & Compliance Audit Trail with search<br>• Administrative clean demo state reset | Tamper-evident record of all automated decisions, analyst overrides, and lifecycle events. |
 
 ---
 
-## 🖥️ Streamlined SOC Dashboard Structure
+## 🧠 Machine Learning & Risk Scoring Pipeline
 
-| Module | Core Functionality | Purpose |
-| :--- | :--- | :--- |
-| **1. Overview Dashboard** | Executive threat summary, active incidents, quarantined hosts counter, and recent alerts. | Operational visibility without clutter. |
-| **2. Live Threat Monitoring** | Full searchable telemetry feed with multi-criteria filters (by threat type and severity tier). | Continuous network event triage. |
-| **3. Threat Investigation** | Flow telemetry attributes, disentangled probabilities vs anomaly scores, SHAP feature attribution, and MITRE ATT&CK alignment. | Deep explainable AI root-cause analysis. |
-| **4. Mitigation & Firewall** | Active quarantined IP blocklist with 1-hour TTL auto-decay, Human-in-the-Loop approval queue, manual unblock controls, Netsh inspection, and protected allowlist (`10.0.0.0/24`). | Automated & analyst defense actions. |
-| **5. Audit Logs** | Chronological record tracking all automated detections, mitigation actions, failures, and analyst manual overrides with CSV export. | Compliance audit trail. |
-| **6. Testing & Evaluation** | Dedicated test suite: Traffic Replay Lab (DDoS, Port Scan, Brute Force), Offline Batch CSV Predictor, Model Comparison benchmarks, and confusion matrices. | Evaluator and viva testing lab. |
+### 1. Multi-Class Supervised Classification (Random Forest)
+- **Primary Model:** Random Forest classifier trained on flow telemetry attributes (dur, spkts, dpkts, sbytes, dbytes, rate, sttl, dttl, etc.).
+- **Supported Classes:**
+  - `Normal` (Benign baseline traffic)
+  - `DoS/DDoS` (High-volume packet flood availability exhaustion)
+  - `Port Scan` (Reconnaissance host/port probing)
+  - `Brute Force` (High-frequency authentication attempts)
+- **Unknown Category Handling:** Reserved code `0` is assigned to any protocol, service, or connection state not encountered during training, preventing arbitrary misclassification.
+
+### 2. Anomaly Detection (Isolation Forest)
+- **Zero-Day Detection:** Unsupervised Isolation Forest isolates atypical network flow distributions that do not match established operational profiles.
+- Outputs an anomaly score from `-1.0` (severe anomaly) to `+1.0` (standard baseline).
+
+### 3. Explainable AI (SHAP TreeExplainer)
+- Uses game-theoretic Shapley Additive Explanations (`TreeExplainer`) to compute local feature attributions for every prediction.
+- Shows exactly which flow features (e.g., packet rate, byte volume, failed login attempts) pushed the AI toward classifying an event as an attack.
+
+### 4. Normalized 0–100 Composite Risk Scoring
+The internal risk score is normalized to a standardized `0.0 – 100.0` scale aligned with CVSS v3.1 impact severity tiers:
+$$\text{Risk Score} = (S_{\text{base}} \times 40) + (C_{\text{model}} \times 30) + (A_{\text{iso}} \times 15) + (M_{\text{telem}} \times 15)$$
+
+- **Base Threat Impact ($40\%$):** DoS ($0.85$), Brute Force ($0.75$), Port Scan ($0.55$), Normal ($0.05$).
+- **Classifier Posterior Probability ($30\%$):** Supervised model confidence ($0.0 - 1.0$).
+- **Isolation Forest Anomaly ($15\%$):** Normalized anomaly magnitude ($0.0 - 1.0$).
+- **Telemetry Volume Modifier ($15\%$):** Ratio of byte rate, packet rate, and connection bursts.
+
+**Severity Tiers:**
+- **Low:** $0.0 - 29.9$ (Informational baseline)
+- **Medium:** $30.0 - 59.9$ (Suspicious anomaly / rate-limited)
+- **High:** $60.0 - 79.9$ (Confirmed attack signature / quarantined)
+- **Critical:** $80.0 - 100.0$ (Severe breach / emergency quarantine)
 
 ---
 
 ## 📊 Benchmark Model Performance (Hold-out Test Set Evaluation)
 
-Evaluated on the **stratified 15% independent hold-out test set** (Benchmark modeled on UNSW-NB15 / CICIDS2017 distributions via `data_generator.py`):
+Evaluated on the **stratified 15% independent hold-out test set** with zero data leakage:
 
-> **Scientific Evaluation Notice:** The reported metrics (>98% RF, >99% XGBoost) reflect evaluation on this stratified 15% independent hold-out synthetic benchmark dataset. High accuracy on synthetically generated distributions does not equate to identical performance on uncontrolled production networks. Production deployment requires continuous retraining on live network PCAP telemetry with domain-specific feature tuning.
-
-| Model Architecture | Type | Accuracy | F1-Score (Target ≥0.90) | Precision | Recall | False Positive Rate | ROC-AUC | Latency (Target &lt;100ms) | Status |
+| Model Architecture | Type | Accuracy | F1-Score (Target ≥0.90) | Precision | Recall | False Positive Rate | ROC-AUC | Latency (ms/flow) | Target Met? |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Random Forest** | Supervised Bagging | **98.93%** | **0.9891** | 0.9891 | 0.9893 | **0.48%** | **0.9995** | **0.046 ms/flow** | ✅ Target Met |
-| **XGBoost** | Gradient Boosting | **99.93%** | **0.9993** | 0.9993 | 0.9993 | **0.12%** | **0.9999** | **0.008 ms/flow** | ✅ Target Met |
-| **Isolation Forest** | Unsupervised Anomaly | **93.09%** | **0.7236** | 0.8140 | 0.6512 | **6.91%** | **0.8640** | **0.020 ms/flow** | ✅ Target Met |
+| **Random Forest** | Supervised Ensemble | **98.93%** | **0.9891** | 0.9891 | 0.9893 | **0.48%** | **0.9995** | **0.046 ms** | ✅ YES |
+| **XGBoost** | Gradient Boosting | **99.93%** | **0.9993** | 0.9993 | 0.9993 | **0.12%** | **0.9999** | **0.008 ms** | ✅ YES |
+| **Isolation Forest** | Unsupervised Anomaly | **93.09%** | **0.7236** | 0.8140 | 0.6512 | **6.91%** | **0.8640** | **0.020 ms** | ✅ YES |
 
 ---
 
-## 🎓 College Viva / Defense Cheat-Sheet (Common Questions & Answers)
+## 🛡️ Safe Simulated Mitigation (Why Real Firewall Is Disabled)
 
-### Q1: Why use both Supervised (Random Forest) and Unsupervised (Isolation Forest) models?
-- **Answer:** Supervised models are extremely accurate at identifying *known* threat signatures (DDoS, Port Scan, Brute Force). However, attackers constantly create zero-day exploits. The unsupervised **Isolation Forest** isolates anomalies without labels, allowing the system to flag novel, never-before-seen network behavior.
-
-### Q2: What is class imbalance and how was it addressed?
-- **Answer:** In real network traffic, >80% of packets are benign (normal), while cyberattacks represent a small fraction. If trained without correction, models become biased toward predicting "Normal". We solved this using **SMOTE (Synthetic Minority Over-sampling Technique)** applied strictly to the training split, synthesizing minority attack samples in feature space.
-
-### Q3: What is Explainable AI (XAI) and why is SHAP used?
-- **Answer:** Traditional machine learning acts as a "black box". In cybersecurity, a SOC analyst cannot block an IP without knowing *why*. **SHAP (SHapley Additive exPlanations)** calculates the game-theoretic contribution of each network feature (e.g., packet rate, byte load, failed logins) to explain exactly why a flow was classified as an attack.
-
-### Q4: How does the system prevent accidental denial-of-service against critical servers?
-- **Answer:** The system implements a **Protected Subnet Allowlist** (`10.0.0.0/24`, Gateway `10.0.0.1`, Public DNS `8.8.8.8`, `1.1.1.1`). Even if a spoofed attack targets or originates from these addresses, the automated mitigation engine prevents automated firewall blocking and triggers a **Human-in-the-Loop** approval workflow instead.
-
-### Q5: How is simulated mitigation distinguished from real host enforcement?
-- **Answer:** The system provides two clearly labeled backends:
-  1. **Simulated Sandbox (Safe Lab):** Drops malicious traffic in software state at the application layer without requiring Administrator privileges.
-  2. **Windows Defender Host Firewall (Netsh):** Generates and directly executes real `netsh advfirewall firewall add rule` commands on the host OS when run with Administrator privileges, complete with rollback support.
+In enterprise SOC environments, automated mitigation coordinates with edge firewalls, SDN controllers, and Cloud ACLs. For academic demonstrations:
+- **No Host OS Modification:** Real Windows Firewall execution (`netsh advfirewall` / PowerShell `New-NetFirewallRule`) is disabled to prevent accidental disruption to network connectivity or host security policies.
+- **Software State Quarantine:** Malicious IP addresses are stored in a thread-safe software blocklist (`data/soc_state.json`) with an active 60-minute sliding TTL auto-decay window.
+- **Drop Verification:** Replaying traffic from a quarantined IP demonstrates that packets are immediately flagged as `DROPPED (Simulated Quarantine Active)`.
+- **Rule Syntax Inspection:** Analysts can inspect the exact Netsh and PowerShell syntax generated by the system for verification.
+- **Immutable Allowlist:** Infrastructure subnets (`10.0.0.0/24`, `127.0.0.0/8`, `192.168.1.0/24`, Gateway `10.0.0.1`, DNS `8.8.8.8`) are strictly protected from accidental quarantine.
 
 ---
 
-### Q6: How does the platform enforce security access control and prevent unauthorized changes?
-- **Answer:** The platform features multi-role **Role-Based Access Control (RBAC)** distinguishing between `admin` (Chief Security Architect) and `analyst` (Tier-2 SOC Analyst). Critical operations such as toggling host firewall mode, retraining models, and clearing compliance state are restricted to administrators.
+## 🧪 Demonstration Sequence for College Evaluators / Mentors
 
-### Q7: How does the system ensure data integrity and prevent state file corruption?
-- **Answer:** Rather than naive JSON writes, the `StateStore` persistence engine executes **atomic file replacements** (`os.replace`) backed by OS-level buffer flushing (`os.fsync`) and automatic `.bak` recovery backups.
+Follow this sequence during your project evaluation or viva defense:
+
+1. **Step 1: Sign In & Dashboard Overview**
+   - Log in using `analyst` / `analyst123` (or click `Login as Analyst`).
+   - Show the 5 KPI metric cards: Total Traffic Records, Detected Threats, Normal Traffic, High-Risk Incidents, and Quarantined Incidents.
+   - Point out the clean Threat Activity Breakdown chart.
+
+2. **Step 2: Stream Threat Scenarios in AI Detection**
+   - Navigate to **AI Detection** -> **Traffic Simulation & Scenario Replay**.
+   - Click **`🔴 Trigger DDoS Attack`** and **`🟠 Trigger Port Scan`**.
+   - Note the real-time notification that threats were detected and automatically quarantined in simulated mode.
+   - Click **`🛡️ Replay Traffic from Quarantined IP`** to demonstrate that subsequent packets from the blocked attacker are actively dropped.
+
+3. **Step 3: CSV Dataset Upload & Schema Validation**
+   - Switch to the **Dataset Upload & Schema Validator** tab.
+   - Upload any network flow CSV (e.g. `data/ddos.csv` or `data/normal.csv`).
+   - Highlight the schema validation card: feature counts, coerced non-numerics, and detection of unseen categorical values.
+   - Click **`🚀 Run Batch AI Inference`** to show batch prediction metrics, latency, and CSV export.
+
+4. **Step 4: Incident Investigation & SHAP Explainability**
+   - Navigate to **Incident Investigation**.
+   - Select an incident (`INC-0001`).
+   - Show the primary triage metrics: Attack Category, Confidence, and 0–100 Risk Score.
+   - Open **`📊 Explainable AI: SHAP Feature Attribution Inspector`** to show the mentor *why* the AI made this decision using game-theoretic Shapley values.
+   - Transition the incident lifecycle status: Enter analyst notes and click **`🔍 Mark as Investigating`** or **`🛡️ Simulate Quarantine (Mitigate)`**.
+
+5. **Step 5: Simulated Mitigation & Audit Reports**
+   - Navigate to **Simulated Mitigation**: Show the active blocklist, remaining TTL countdown, and rule syntax viewer.
+   - Click **`🔓 Release IP`** to manually unblock an IP.
+   - Navigate to **Reports & Audit History**: Demonstrate that every detection, lifecycle transition, and mitigation action was chronologically logged, and click **`📥 Download Audit Trail (CSV)`**.
 
 ---
 
-## 🛠️ Requirements & Installation
+## 🎓 College Viva / Defense FAQ
 
-- **Python:** 3.10, 3.11, 3.12, 3.13, or 3.14
-- **Dependencies:**
-  ```bash
-  pip install -r requirements.txt
-  ```
+**Q1: Why use both Supervised (Random Forest) and Unsupervised (Isolation Forest) models?**  
+*Answer:* Supervised models excel at recognizing *known* attack signatures (DDoS, Port Scan, Brute Force). However, zero-day attacks have no historical labels. The unsupervised Isolation Forest isolates anomalous flow metrics without training labels, flagging novel malicious behavior.
+
+**Q2: What is Explainable AI (XAI) and why is SHAP essential?**  
+*Answer:* Standard ML acts as a "black box". In cybersecurity operations, an analyst cannot block business-critical IP traffic without justification. SHAP (`TreeExplainer`) provides local, mathematically provable feature attributions that explain which specific flow attributes (e.g., packet rate, byte volume) triggered the detection.
+
+**Q3: How does the system handle unknown protocols or categorical values?**  
+*Answer:* Instead of silently mapping unseen categories to arbitrary classes, `inference.py` reserves code `0` explicitly for `unknown` categories and records them in the validation report, ensuring the model does not produce overconfident, erroneous predictions.
+
+**Q4: How does the system ensure data persistence and prevent corruption?**  
+*Answer:* The `StateStore` module implements atomic file writes using `NamedTemporaryFile` and `os.replace`, backed by OS buffer flushing (`os.fsync`) and an automatic synchronized `.bak` backup file for instant corruption recovery.

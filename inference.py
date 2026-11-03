@@ -770,12 +770,112 @@ def analyze_phishing_url(url_string: str) -> dict:
     }
 
 # -------------------------------------------------------------
-# FR-16: Batch Flow CSV Predictor
+# FR-16: Batch Flow CSV Predictor & Schema Validator
 # -------------------------------------------------------------
+def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
+    """
+    Validates and preprocesses uploaded network flow CSV files.
+    - Inspects required and optional features against the model's schema.
+    - Validates data types, coercing non-numeric values where appropriate.
+    - Safely identifies and counts missing values (NaNs).
+    - Checks categorical attributes ('proto', 'service', 'state') against the fitted vocabulary,
+      explicitly flagging unseen levels (which map to code 0).
+    - Produces a cleaned DataFrame ready for batch inference.
+    """
+    load_all_artifacts()
+
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return {
+            "valid": False,
+            "total_rows": 0,
+            "total_cols": 0,
+            "present_numerical": [],
+            "missing_numerical": NUMERICAL_FEATURES.copy(),
+            "present_categorical": [],
+            "missing_categorical": CATEGORICAL_FEATURES.copy(),
+            "nan_count": 0,
+            "coerced_nan_count": 0,
+            "unseen_categories": {},
+            "summary_message": "Uploaded CSV file is empty or could not be parsed.",
+            "cleaned_df": pd.DataFrame()
+        }
+
+    cleaned_df = df.copy()
+    cleaned_df.columns = [str(c).strip().lower() for c in cleaned_df.columns]
+
+    # Map common alternative column names
+    alias_map = {
+        "duration": "dur",
+        "bytes_sent": "sbytes",
+        "bytes_received": "dbytes",
+        "packets_sent": "spkts",
+        "packets_recv": "dpkts",
+        "protocol": "proto",
+        "ip_proto": "proto",
+        "service_name": "service",
+        "conn_state": "state"
+    }
+    for alias, standard in alias_map.items():
+        if alias in cleaned_df.columns and standard not in cleaned_df.columns:
+            cleaned_df[standard] = cleaned_df[alias]
+
+    present_num = [c for c in NUMERICAL_FEATURES if c in cleaned_df.columns]
+    missing_num = [c for c in NUMERICAL_FEATURES if c not in cleaned_df.columns]
+    present_cat = [c for c in CATEGORICAL_FEATURES if c in cleaned_df.columns]
+    missing_cat = [c for c in CATEGORICAL_FEATURES if c not in cleaned_df.columns]
+
+    total_nan_before = int(cleaned_df.isna().sum().sum())
+    coerced_count = 0
+
+    # Validate numerical columns
+    for col in present_num:
+        original_nans = cleaned_df[col].isna().sum()
+        cleaned_df[col] = pd.to_numeric(cleaned_df[col], errors="coerce")
+        new_nans = cleaned_df[col].isna().sum() - original_nans
+        coerced_count += max(0, int(new_nans))
+
+    # Validate categorical columns against trained vocabulary
+    unseen_cats = {}
+    for col in CATEGORICAL_FEATURES:
+        if col in cleaned_df.columns:
+            cleaned_df[col] = cleaned_df[col].astype(str).str.strip().str.lower()
+            if col == "state":
+                cleaned_df[col] = cleaned_df[col].str.upper()
+            known_vocab = set(_categorical_maps.get(col, {}).keys()) if _categorical_maps else set()
+            col_unseen = set(cleaned_df[col].unique()) - known_vocab
+            col_unseen.discard("unknown")
+            col_unseen.discard("nan")
+            if col_unseen:
+                unseen_cats[col] = sorted(list(col_unseen))
+
+    is_valid = len(present_num) >= 2 or len(present_cat) >= 1 or "src_ip" in cleaned_df.columns
+
+    msg = f"Validated {len(cleaned_df)} flow rows with {len(present_num)}/{len(NUMERICAL_FEATURES)} numerical features and {len(present_cat)}/{len(CATEGORICAL_FEATURES)} categorical features."
+    if unseen_cats:
+        msg += f" Note: {sum(len(v) for v in unseen_cats.values())} unseen category values detected (will safely map to reserved code 0)."
+
+    return {
+        "valid": is_valid,
+        "total_rows": len(cleaned_df),
+        "total_cols": len(cleaned_df.columns),
+        "present_numerical": present_num,
+        "missing_numerical": missing_num,
+        "present_categorical": present_cat,
+        "missing_categorical": missing_cat,
+        "nan_count": total_nan_before,
+        "coerced_nan_count": coerced_count,
+        "unseen_categories": unseen_cats,
+        "summary_message": msg,
+        "cleaned_df": cleaned_df
+    }
+
 def predict_batch_csv(df: pd.DataFrame, model_name: str = None) -> dict:
-    """Classifies batch rows of network flow CSV (FR-16)."""
+    """Classifies batch rows of network flow CSV with schema validation."""
     load_all_artifacts()
     t_start = time.time()
+    
+    val_report = validate_and_prepare_csv(df)
+    target_df = val_report["cleaned_df"] if val_report["valid"] else df
     
     selected_model_name = model_name or _active_model_name
     
@@ -784,7 +884,7 @@ def predict_batch_csv(df: pd.DataFrame, model_name: str = None) -> dict:
     high_risk_count = 0
     anomalies_count = 0
     
-    for idx, row in df.iterrows():
+    for idx, row in target_df.iterrows():
         flow_dict = row.to_dict()
         res = analyze_event(flow_dict, model_override=selected_model_name)
         
@@ -806,14 +906,16 @@ def predict_batch_csv(df: pd.DataFrame, model_name: str = None) -> dict:
             "risk_level": res["risk_level"],
             "action": res["recommended_action"],
             "mitre_technique": res["mitre_attack"]["technique_id"],
-            "is_anomaly": res["is_anomaly"]
+            "is_anomaly": res["is_anomaly"],
+            "unseen_categories": res.get("unseen_categories", [])
         })
         
     total_time = time.time() - t_start
-    avg_latency = round((total_time / max(1, len(df))) * 1000, 3)
+    avg_latency = round((total_time / max(1, len(target_df))) * 1000, 3)
     
     return {
-        "total_flows": len(df),
+        "total_flows": len(target_df),
+        "validation_report": val_report,
         "model_used": selected_model_name,
         "class_breakdown": class_counts,
         "high_risk_count": high_risk_count,

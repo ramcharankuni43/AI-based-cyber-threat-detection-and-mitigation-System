@@ -181,6 +181,80 @@ class TestCyberThreatMitigationSystem(unittest.TestCase):
         valid, msg = inference.validate_artifacts()
         self.assertTrue(valid, f"Artifact validation failed: {msg}")
 
+    def test_08_csv_schema_validation(self):
+        """Verify CSV schema validator checks columns, data types, missing values, and unseen categories."""
+        df_sample = pd.DataFrame({
+            "duration": [0.05, 1.2],
+            "packets_sent": [10, 50],
+            "packets_recv": [8, 40],
+            "bytes_sent": [400, 2000],
+            "bytes_received": [800, 4000],
+            "rate": ["150.5", "invalid_numeric"],
+            "proto": ["tcp", "wireguard_custom"],
+            "service": ["http", "unknown_custom_service"],
+            "state": ["FIN", "NEW_STATE"]
+        })
+        val = inference.validate_and_prepare_csv(df_sample)
+        self.assertTrue(val["valid"])
+        self.assertEqual(val["total_rows"], 2)
+        self.assertIn("proto", val["unseen_categories"])
+        self.assertIn("wireguard_custom", val["unseen_categories"]["proto"])
+        self.assertIn("service", val["unseen_categories"])
+        self.assertGreaterEqual(val["coerced_nan_count"], 1)
+
+    def test_09_incident_lifecycle_transitions(self):
+        """Verify Incident lifecycle state updates: New -> Investigating -> Mitigated -> Dismissed."""
+        from services.alert_service import update_incident_status
+        state = {
+            "incidents": [
+                {
+                    "incident_id": "INC-0001",
+                    "src_ip": "198.51.100.77",
+                    "status": "New",
+                    "predicted_threat": "DoS/DDoS",
+                    "risk_score": 85.0,
+                    "severity": "Critical"
+                }
+            ],
+            "blocklist": {},
+            "audit_logs": [],
+            "dismissed_ips": set()
+        }
+
+        # 1. Transition New -> Investigating
+        res1 = update_incident_status(state, "INC-0001", "Investigating", analyst_notes="Triaging flow vectors")
+        self.assertTrue(res1["success"])
+        self.assertEqual(state["incidents"][0]["status"], "Investigating")
+
+        # 2. Transition Investigating -> Mitigated (Simulates quarantine)
+        res2 = update_incident_status(state, "INC-0001", "Mitigated", analyst_notes="Confirmed DDoS flooding")
+        self.assertTrue(res2["success"])
+        self.assertEqual(state["incidents"][0]["status"], "Mitigated")
+        self.assertIn("198.51.100.77", state["blocklist"])
+        self.assertEqual(state["incidents"][0]["mitigation_status"], "SIMULATED QUARANTINED")
+
+        # 3. Transition Mitigated -> Dismissed (Simulates release)
+        res3 = update_incident_status(state, "INC-0001", "Dismissed", analyst_notes="False positive verified")
+        self.assertTrue(res3["success"])
+        self.assertEqual(state["incidents"][0]["status"], "Dismissed")
+        self.assertNotIn("198.51.100.77", state["blocklist"])
+        self.assertIn("198.51.100.77", state["dismissed_ips"])
+
+    def test_10_simulated_mitigation_safe_mode(self):
+        """Verify simulated mitigation operates 100% in software state without OS modification."""
+        from services.mitigation_service import execute_firewall_rule, remove_firewall_rule
+        # Execution
+        exec_res = execute_firewall_rule("198.51.100.123", simulate_safe=True)
+        self.assertTrue(exec_res["success"])
+        self.assertTrue(exec_res["simulated"])
+        self.assertIn("Simulated", exec_res["mode"])
+
+        # Rollback
+        rem_res = remove_firewall_rule("198.51.100.123", simulate_safe=True)
+        self.assertTrue(rem_res["success"])
+        self.assertTrue(rem_res["simulated"])
+        self.assertIn("Simulated", rem_res["mode"])
+
 if __name__ == "__main__":
     unittest.main()
 
