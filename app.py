@@ -21,6 +21,18 @@ STATE_FILE = os.path.join(DATA_DIR, "soc_state.json")
 
 import inference
 from model_trainer import train_and_evaluate_all
+from storage import StateStore
+from services import (
+    authenticate_user,
+    has_permission,
+    execute_firewall_rule,
+    remove_firewall_rule,
+    generate_firewall_rule,
+    is_safe_to_block_ip,
+    TRUSTED_WHITELIST_IPS,
+    process_stream_batch as alert_process_stream_batch,
+    purge_expired_quarantines
+)
 
 # Page configuration
 st.set_page_config(
@@ -188,88 +200,33 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# PERSISTENT STATE MANAGEMENT
+# PERSISTENT ATOMIC STATE MANAGEMENT (Finding B)
 # -------------------------------------------------------------
-def load_persisted_state():
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return None
-    return None
+state_store = StateStore(STATE_FILE)
+persisted = state_store.load_state()
 
 def save_persisted_state():
-    try:
-        data = {
-            "blocklist": st.session_state.blocklist,
-            "audit_logs": st.session_state.audit_logs[:150],
-            "total_flows_processed": st.session_state.total_flows_processed,
-            "blocked_traffic_drops": st.session_state.blocked_traffic_drops,
-            "dismissed_ips": list(st.session_state.get("dismissed_ips", []))
-        }
-        with open(STATE_FILE, "w") as f:
-            json.dump(data, f, indent=2)
-        st.session_state.persistence_error = None
-        return True
-    except Exception as e:
-        st.session_state.persistence_error = str(e)
-        return False
+    """Atomically persists state to disk with automatic .bak fail-safe backup."""
+    return state_store.save_state({
+        "blocklist": st.session_state.blocklist,
+        "audit_logs": st.session_state.audit_logs[:200],
+        "total_flows_processed": st.session_state.total_flows_processed,
+        "blocked_traffic_drops": st.session_state.blocked_traffic_drops,
+        "dismissed_ips": list(st.session_state.get("dismissed_ips", []))
+    })
 
 def check_and_purge_expired_quarantines():
-    """Purges expired quarantined IP addresses based on 1-hour TTL lease with rigorous error checking."""
-    now = time.time()
-    expired_ips = []
-    for ip, meta in list(st.session_state.blocklist.items()):
-        if meta.get("status", "").startswith("BLOCKED"):
-            quarantined_at = meta.get("quarantined_at", now)
-            ttl = meta.get("ttl_seconds", 3600)
-            if (now - quarantined_at) >= ttl:
-                expired_ips.append(ip)
-                
-    for ip in expired_ips:
-        backend_is_real = st.session_state.get("enforcement_backend", "").startswith("Windows Defender")
-        if backend_is_real:
-            rem_res = inference.remove_firewall_rule(ip, simulate_safe=False)
-            if rem_res.get("success", False):
-                del st.session_state.blocklist[ip]
-                st.session_state.audit_logs.insert(0, {
-                    "timestamp": time.strftime("%H:%M:%S"),
-                    "action": "QUARANTINE_EXPIRED",
-                    "target": ip,
-                    "actor": "TTL Decay Daemon (Real Host Netsh)",
-                    "reason": "1-Hour quarantine lease expired. Host OS firewall rule successfully removed.",
-                    "result": "SUCCESS"
-                })
-            else:
-                # Do not falsely claim success if OS rule deletion failed
-                st.session_state.audit_logs.insert(0, {
-                    "timestamp": time.strftime("%H:%M:%S"),
-                    "action": "QUARANTINE_EXPIRY_ERROR",
-                    "target": ip,
-                    "actor": "TTL Decay Daemon (Real Host Netsh)",
-                    "reason": f"1-Hour lease expired but host firewall removal failed: {rem_res.get('status_message')}",
-                    "result": "FAILURE"
-                })
-        else:
-            # Simulated Sandbox mode: guaranteed safe removal in software memory
-            rem_res = inference.remove_firewall_rule(ip, simulate_safe=True)
-            del st.session_state.blocklist[ip]
-            st.session_state.audit_logs.insert(0, {
-                "timestamp": time.strftime("%H:%M:%S"),
-                "action": "QUARANTINE_EXPIRED",
-                "target": ip,
-                "actor": "TTL Decay Daemon (Simulated Sandbox)",
-                "reason": "1-Hour quarantine lease expired. IP released from simulated blocklist.",
-                "result": "SUCCESS"
-            })
-    if expired_ips:
+    """Purges expired quarantined IP addresses based on 1-hour TTL lease with verified removal."""
+    expired = purge_expired_quarantines(
+        st.session_state.blocklist,
+        st.session_state.audit_logs,
+        st.session_state.enforcement_backend
+    )
+    if expired:
         save_persisted_state()
-    return expired_ips
+    return expired
 
 # Initialize Session State
-persisted = load_persisted_state() or {}
-
 if "alerts_history" not in st.session_state:
     st.session_state.alerts_history = []
 if "blocklist" not in st.session_state:
@@ -286,6 +243,55 @@ if "mitigation_mode" not in st.session_state:
     st.session_state.mitigation_mode = "Autonomous Auto-Block"
 if "enforcement_backend" not in st.session_state:
     st.session_state.enforcement_backend = "Simulated Sandbox (Safe Lab)"
+if "authenticated_user" not in st.session_state:
+    st.session_state.authenticated_user = None
+
+# Periodic TTL purge check
+check_and_purge_expired_quarantines()
+
+# -------------------------------------------------------------
+# AUTHENTICATION & ACCESS CONTROL GATE (Finding D)
+# -------------------------------------------------------------
+if st.session_state.authenticated_user is None:
+    st.markdown("""
+    <div style="max-width: 520px; margin: 40px auto 16px auto; text-align: center;">
+        <div style="font-size: 2.5rem; margin-bottom: 6px;">🛡️</div>
+        <h2 style="color: #f8fafc; margin-bottom: 4px; font-weight: 700;">CyberSentinel SOC Platform</h2>
+        <p style="color: #94a3b8; font-size: 0.88rem;">AI Intrusion Detection & Automated Mitigation System</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    auth_col1, auth_col2, auth_col3 = st.columns([1, 2, 1])
+    with auth_col2:
+        with st.form("soc_login_form"):
+            st.markdown("##### 🔐 SOC Analyst & Administrator Sign In")
+            login_user = st.text_input("Username:", placeholder="admin or analyst")
+            login_pass = st.text_input("Password:", type="password", placeholder="admin123 or analyst123")
+            submitted = st.form_submit_button("Sign In to Console", width="stretch")
+            if submitted:
+                authed = authenticate_user(login_user, login_pass)
+                if authed:
+                    st.session_state.authenticated_user = authed
+                    st.success(f"Welcome, {authed['display_name']}!")
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials. Please verify username and password.")
+
+        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.8rem; margin: 12px 0;'>— OR QUICK EVALUATION ACCESS —</p>", unsafe_allow_html=True)
+        demo_col1, demo_col2 = st.columns(2)
+        with demo_col1:
+            if st.button("🔑 Login as Admin", width="stretch", help="Full permissions: host firewall, retraining, state management"):
+                st.session_state.authenticated_user = authenticate_user("admin", "admin123")
+                st.rerun()
+        with demo_col2:
+            if st.button("👤 Login as Analyst", width="stretch", help="Triage permissions: threat investigation, quarantine approval"):
+                st.session_state.authenticated_user = authenticate_user("analyst", "analyst123")
+                st.rerun()
+
+    st.stop()
+
+cur_user = st.session_state.authenticated_user
+cur_role = cur_user.get("role", "analyst")
 
 # Periodic TTL purge check
 check_and_purge_expired_quarantines()
@@ -304,6 +310,22 @@ with st.sidebar:
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    role_color = "#f43f5e" if cur_role == "admin" else "#38bdf8"
+    role_bg = "#450a0a" if cur_role == "admin" else "#082f49"
+    st.markdown(f"""
+    <div style="background-color: #0f172a; border: 1px solid #1e293b; padding: 10px 12px; border-radius: 6px; margin-bottom: 10px;">
+        <div style="font-size: 0.82rem; font-weight: 600; color: #f8fafc;">{cur_user.get('display_name', 'Operator')}</div>
+        <div style="margin-top: 4px;">
+            <span style="background-color: {role_bg}; color: {role_color}; padding: 2px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; font-family: monospace;">
+                ROLE: {cur_role.upper()}
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("🚪 Sign Out", width="stretch"):
+        st.session_state.authenticated_user = None
+        st.rerun()
 
     st.markdown("##### Navigation")
     nav_page = st.radio(
@@ -376,130 +398,24 @@ active_quarantined_ips = [ip for ip, b in st.session_state.blocklist.items() if 
 pending_approval_ips = [ip for ip, b in st.session_state.blocklist.items() if b.get("status") == "PENDING_APPROVAL"]
 
 # -------------------------------------------------------------
-# TELEMETRY STREAM INGESTION ENGINE
+# TELEMETRY STREAM INGESTION ENGINE (Modularized via Services)
 # -------------------------------------------------------------
 def process_stream_batch(batch_df: pd.DataFrame, batch_label: str, source_type: str = "Simulation Replay"):
     """Unified telemetry stream ingestor with consistent mitigation and quarantine rules."""
     check_and_purge_expired_quarantines()
-    
-    for _, row in batch_df.iterrows():
-        flow = row.to_dict()
-        src_ip = str(flow.get("src_ip", "")).strip()
-        
-        # Check active firewall blocklist
-        is_already_blocked = (src_ip in st.session_state.blocklist and st.session_state.blocklist[src_ip]["status"].startswith("BLOCKED"))
-        
-        if is_already_blocked:
-            st.session_state.blocked_traffic_drops += 1
-            firewall_status = "DROPPED (Firewall Active)"
-        else:
-            firewall_status = "PENDING_EVALUATION"
-            
-        res = inference.analyze_event(flow, model_override="random_forest")
-        action_code = res.get("action_code", "LOG_ONLY")
-        risk_lvl = res.get("risk_level", "Low")
-        
-        # Mitigation decision
-        if firewall_status.startswith("DROPPED"):
-            pass
-        elif action_code == "INTERNAL_HOST_CONTAINMENT":
-            firewall_status = "INTERNAL HOST ALERT"
-            if not any(log.get("target") == src_ip and log.get("action") == "HOST_CONTAINMENT" for log in st.session_state.audit_logs[:5]):
-                st.session_state.audit_logs.insert(0, {
-                    "timestamp": time.strftime("%H:%M:%S"),
-                    "action": "HOST_CONTAINMENT",
-                    "target": src_ip,
-                    "actor": "Policy Engine",
-                    "reason": f"Internal host flagged for {res['predicted_threat']} activity in protected subnet.",
-                    "result": "ALERTED"
-                })
-        elif action_code == "WHITELIST_PROTECTED":
-            firewall_status = "WHITELIST PROTECTED"
-        elif risk_lvl in ["High", "Critical"]:
-            if src_ip in st.session_state.dismissed_ips:
-                firewall_status = "ANALYST PERMITTED"
-            elif st.session_state.mitigation_mode == "Autonomous Auto-Block":
-                backend_is_real = st.session_state.enforcement_backend.startswith("Windows Defender")
-                rule_spec = res.get("firewall_rule_specs", {})
-                
-                if backend_is_real:
-                    exec_res = inference.execute_firewall_rule(src_ip, simulate_safe=False)
-                    if exec_res.get("success"):
-                        block_status = "BLOCKED (Real OS Netsh)"
-                        res_outcome = "SUCCESS"
-                    else:
-                        block_status = "BLOCKED (Sandbox Fallback - Admin Required)"
-                        res_outcome = "FAILURE (Fallback to Sandbox)"
-                    mode_desc = "Windows Defender Netsh"
-                else:
-                    exec_res = inference.execute_firewall_rule(src_ip, simulate_safe=True)
-                    block_status = "BLOCKED (Simulated Sandbox)"
-                    res_outcome = "SUCCESS"
-                    mode_desc = "Simulated Sandbox"
-                    
-                st.session_state.blocklist[src_ip] = {
-                    "timestamp": time.strftime("%H:%M:%S"),
-                    "quarantined_at": time.time(),
-                    "ttl_seconds": 3600,
-                    "threat": res["predicted_threat"],
-                    "risk_score": res["risk_score"],
-                    "risk_level": risk_lvl,
-                    "status": block_status,
-                    "mode": mode_desc,
-                    "rule": rule_spec.get("netsh_command", "")
-                }
-                firewall_status = "QUARANTINED"
-                
-                if not any(log.get("target") == src_ip and log.get("action") == "IP_QUARANTINED" for log in st.session_state.audit_logs[:5]):
-                    st.session_state.audit_logs.insert(0, {
-                        "timestamp": time.strftime("%H:%M:%S"),
-                        "action": "IP_QUARANTINED",
-                        "target": src_ip,
-                        "actor": f"Autonomous Mitigation ({mode_desc})",
-                        "reason": f"{risk_lvl} severity threat {res['predicted_threat']} detected (Score: {res['risk_score']}). Status: {res_outcome}",
-                        "result": "SUCCESS" if "SUCCESS" in res_outcome else "FAILURE"
-                    })
-            else: # Human-in-the-Loop
-                if src_ip not in st.session_state.blocklist or not st.session_state.blocklist[src_ip]["status"].startswith("BLOCKED"):
-                    is_already_pending = (src_ip in st.session_state.blocklist and st.session_state.blocklist[src_ip]["status"] == "PENDING_APPROVAL")
-                    st.session_state.blocklist[src_ip] = {
-                        "timestamp": time.strftime("%H:%M:%S"),
-                        "quarantined_at": time.time(),
-                        "ttl_seconds": 3600,
-                        "threat": res["predicted_threat"],
-                        "risk_score": res["risk_score"],
-                        "risk_level": risk_lvl,
-                        "status": "PENDING_APPROVAL",
-                        "mode": st.session_state.enforcement_backend,
-                        "rule": res.get("firewall_rule_specs", {}).get("netsh_command", "")
-                    }
-                    firewall_status = "PENDING APPROVAL"
-                    if not is_already_pending:
-                        st.session_state.audit_logs.insert(0, {
-                            "timestamp": time.strftime("%H:%M:%S"),
-                            "action": "FLAGGED_PENDING_APPROVAL",
-                            "target": src_ip,
-                            "actor": "Human-in-the-Loop Gateway",
-                            "reason": f"{risk_lvl} threat {res['predicted_threat']} flagged; awaiting security analyst authorization.",
-                            "result": "PENDING"
-                        })
-                else:
-                    firewall_status = "DROPPED (Firewall Active)"
-        elif risk_lvl == "Medium":
-            firewall_status = "RATE-LIMITED"
-        else:
-            firewall_status = "ACCEPTED"
-            
-        flow_record = {
-            **flow,
-            **res,
-            "firewall_status": firewall_status,
-            "stream_source": source_type,
-            "timestamp": time.strftime("%H:%M:%S")
-        }
-        st.session_state.alerts_history.insert(0, flow_record)
-        st.session_state.total_flows_processed += 1
-        
+    state_dict = {
+        "blocklist": st.session_state.blocklist,
+        "audit_logs": st.session_state.audit_logs,
+        "alerts_history": st.session_state.alerts_history,
+        "dismissed_ips": st.session_state.dismissed_ips,
+        "mitigation_mode": st.session_state.mitigation_mode,
+        "enforcement_backend": st.session_state.enforcement_backend,
+        "blocked_traffic_drops": st.session_state.blocked_traffic_drops,
+        "total_flows_processed": st.session_state.total_flows_processed
+    }
+    alert_process_stream_batch(batch_df, batch_label, source_type, state_dict, inference)
+    st.session_state.blocked_traffic_drops = state_dict["blocked_traffic_drops"]
+    st.session_state.total_flows_processed = state_dict["total_flows_processed"]
     save_persisted_state()
 
 # -------------------------------------------------------------
@@ -781,10 +697,12 @@ elif nav_page == "Threat Investigation":
         with st.expander("📐 Risk Scoring Formulation & Mathematical Weights", expanded=False):
             rb = target_alert.get("risk_breakdown", {})
             st.markdown(f"""
-            - **Base CVSS Impact Weight:** `{rb.get('base_severity', 0.50)}` ({target_threat})
-            - **Classifier Probability Weight (55%):** `{rb.get('model_confidence', 0):.2%}`
-            - **Anomaly Score Weight (25%):** `{rb.get('anomaly_score', 0):.4f}`
-            - **Telemetry Modifier Weight (20%):** `{rb.get('telemetry_modifier', 0.0):.4f}`
+            - **Internal Composite Risk Scale:** 0.0 to 100.0 (Standardized CVSS v3.1 Impact Alignment)
+            - **Base Severity Impact (40% Weight):** `{rb.get('base_severity', 0.50)}` ({target_threat})
+            - **Classifier Posterior Probability (30% Weight):** `{rb.get('model_confidence', 0):.2%}`
+            - **Isolation Forest Anomaly Score (15% Weight):** `{rb.get('anomaly_score', 0):.4f}`
+            - **Telemetry Modifiers (15% Weight):** `{rb.get('telemetry_modifier', 0.0):.4f}`
+            - **Formula:** `{rb.get('formula', 'Composite Risk (0-100) = (Base*40) + (Conf*30) + (Anomaly*15) + (Telemetry*15)')}`
             - **Threshold Standards:** Low (0–29.9) • Medium (30–59.9) • High (60–79.9) • Critical (80–100)
             """)
 
@@ -811,13 +729,22 @@ elif nav_page == "Mitigation & Firewall":
             st.rerun()
 
     with cfg_col2:
+        can_change_fw = has_permission(cur_role, "toggle_real_firewall")
+        fw_options = ["Simulated Sandbox (Safe Lab)"]
+        if can_change_fw:
+            fw_options.append("Windows Defender Host Firewall (Netsh)")
+        
+        current_index = 1 if (st.session_state.enforcement_backend.startswith("Windows Defender") and can_change_fw) else 0
+
         fw_backend = st.selectbox(
             "Firewall Backend Mode:",
-            options=["Simulated Sandbox (Safe Lab)", "Windows Defender Host Firewall (Netsh)"],
-            index=0 if st.session_state.enforcement_backend.startswith("Simulated") else 1,
-            help="Simulated Sandbox safely drops traffic in software memory. Windows Defender generates executable Netsh firewall rules on host."
+            options=fw_options,
+            index=current_index,
+            help="Simulated Sandbox safely drops traffic in software memory. Windows Defender generates Netsh rules (Admin required)."
         )
-        if fw_backend != st.session_state.enforcement_backend:
+        if not can_change_fw:
+            st.caption("🔒 *Administrator credentials required to enable host firewall enforcement.*")
+        elif fw_backend != st.session_state.enforcement_backend:
             st.session_state.enforcement_backend = fw_backend
             st.rerun()
 
@@ -1131,6 +1058,8 @@ elif nav_page == "Testing & Evaluation":
 
         comp_rows = []
         for key, m in models.items():
+            roc_val = m.get("roc_auc")
+            roc_str = f"{float(roc_val):.4f}" if roc_val is not None else "N/A"
             comp_rows.append({
                 "Model Architecture": m.get("name"),
                 "Type": m.get("type"),
@@ -1139,11 +1068,29 @@ elif nav_page == "Testing & Evaluation":
                 "Precision": f"{m.get('precision_weighted', m.get('precision', 0)):.4f}",
                 "Recall": f"{m.get('recall_weighted', m.get('recall', 0)):.4f}",
                 "FPR": f"{m.get('false_positive_rate', 0):.4f}",
-                "ROC-AUC": f"{m.get('roc_auc', 0):.4f}",
+                "ROC-AUC": roc_str,
                 "Latency/Flow": f"{m.get('prediction_latency_ms', 0):.3f} ms",
                 "Target Met?": "YES" if m.get("meets_f1_target", True) else "NO"
             })
         st.table(pd.DataFrame(comp_rows))
+
+        # Validation Split Performance (Leakage-Free Validation Check)
+        val_metrics = report.get("validation_metrics", {})
+        if val_metrics:
+            st.markdown("##### Stratified Validation Split Performance (Zero-Leakage Tuning Check)")
+            val_rows = []
+            for mkey, vdata in val_metrics.items():
+                val_rows.append({
+                    "Model Architecture": mkey.replace("_", " ").title(),
+                    "Validation Metric": "Accuracy & F1" if "accuracy" in vdata else "Anomaly F1",
+                    "Score / Reading": f"Accuracy: {vdata.get('accuracy', '-')}, F1: {vdata.get('f1_score', vdata.get('anomaly_f1', '-'))}"
+                })
+            st.dataframe(pd.DataFrame(val_rows), width="stretch")
+
+        # Dataset Provenance Notice
+        ds_info = report.get("dataset", {})
+        if ds_info.get("benchmark_note"):
+            st.info(f"ℹ️ **Dataset Provenance & Scientific Note:** {ds_info.get('benchmark_note')}")
 
         # Per-Class Metrics Matrix
         st.markdown("##### Per-Class Performance Breakdown Matrix (Random Forest)")
@@ -1211,23 +1158,25 @@ elif nav_page == "Testing & Evaluation":
         m_c1, m_c2 = st.columns(2)
         with m_c1:
             if st.button("🧹 Reset Demo State", help="Clears event logs, blocklist, and session state", width="stretch"):
-                st.session_state.alerts_history = []
-                st.session_state.blocklist = {}
-                st.session_state.audit_logs = []
-                st.session_state.total_flows_processed = 0
-                st.session_state.blocked_traffic_drops = 0
-                st.session_state.dismissed_ips = set()
-                if os.path.exists(STATE_FILE):
-                    try:
-                        os.remove(STATE_FILE)
-                    except Exception:
-                        pass
-                st.success("Clean state restored!")
-                st.rerun()
+                if not has_permission(cur_role, "clear_demo_state"):
+                    st.error("Admin role required: You must be signed in as Administrator to clear state.")
+                else:
+                    st.session_state.alerts_history = []
+                    st.session_state.blocklist = {}
+                    st.session_state.audit_logs = []
+                    st.session_state.total_flows_processed = 0
+                    st.session_state.blocked_traffic_drops = 0
+                    st.session_state.dismissed_ips = set()
+                    state_store.clear_state()
+                    st.success("Clean state restored!")
+                    st.rerun()
         with m_c2:
             if st.button("🔄 Retrain ML Models", help="Retrains models on benchmark dataset", width="stretch"):
-                with st.spinner("Training models & evaluating test set..."):
-                    rep = train_and_evaluate_all()
-                    inference.reload_all_artifacts()
-                    st.success("Retrained and reloaded successfully!")
-                    st.rerun()
+                if not has_permission(cur_role, "retrain_models"):
+                    st.error("Admin role required: You must be signed in as Administrator to retrain models.")
+                else:
+                    with st.spinner("Training models & evaluating test set..."):
+                        rep = train_and_evaluate_all()
+                        inference.reload_all_artifacts()
+                        st.success("Retrained and reloaded successfully!")
+                        st.rerun()

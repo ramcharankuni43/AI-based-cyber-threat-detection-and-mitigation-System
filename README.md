@@ -23,7 +23,7 @@ python -m streamlit run app.py
 
 ## 📁 Simple & Clean Project Architecture
 
-The entire project is self-contained in 4 simple Python files and 2 data folders:
+The application is structured into decoupled presentation, service, persistence, and machine learning layers:
 
 ```text
 cyber/
@@ -31,7 +31,15 @@ cyber/
 ├── app.py                   # 🖥️ Interactive SOC Web Dashboard (Streamlit)
 ├── inference.py             # ⚡ Real-Time ML Decision Engine, SHAP XAI & Risk Scoring
 ├── model_trainer.py         # 🧠 Model Training Pipeline (SMOTE, RF, XGBoost, Isolation Forest)
-├── data_generator.py        # 📊 UNSW-NB15 Benchmark & Replay Traffic Generator
+├── data_generator.py        # 📊 Synthetic Benchmark & Replay Traffic Generator
+│
+├── storage/                 # 💾 Durable Persistence Layer
+│   └── state_store.py       # Thread-safe atomic file writes (os.replace) & fail-safe .bak backup
+│
+├── services/                # ⚙️ Decoupled Business Logic Services
+│   ├── auth_service.py      # SOC Authentication & Role-Based Access Control (Admin / Analyst RBAC)
+│   ├── mitigation_service.py # Firewall rule generation, Netsh verification & safe IP allowlist
+│   └── alert_service.py     # Telemetry batch ingestion, TTL purge daemon & compliance audit logs
 │
 ├── data/                    # 📁 Datasets & Simulation Traffic CSVs
 │   ├── unsw_nb15_sample.csv # Benchmark training & testing dataset
@@ -100,7 +108,9 @@ cyber/
 
 ## 📊 Benchmark Model Performance (Hold-out Test Set Evaluation)
 
-Evaluated on the **UNSW-NB15 benchmark hold-out test set (stratified 15% split)**:
+Evaluated on the **stratified 15% independent hold-out test set** (Benchmark modeled on UNSW-NB15 / CICIDS2017 distributions via `data_generator.py`):
+
+> **Scientific Evaluation Notice:** The reported metrics (>98% RF, >99% XGBoost) reflect evaluation on this stratified 15% independent hold-out synthetic benchmark dataset. High accuracy on synthetically generated distributions does not equate to identical performance on uncontrolled production networks. Production deployment requires continuous retraining on live network PCAP telemetry with domain-specific feature tuning.
 
 | Model Architecture | Type | Accuracy | F1-Score (Target ≥0.90) | Precision | Recall | False Positive Rate | ROC-AUC | Latency (Target &lt;100ms) | Status |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -128,6 +138,14 @@ Evaluated on the **UNSW-NB15 benchmark hold-out test set (stratified 15% split)*
 - **Answer:** The system provides two clearly labeled backends:
   1. **Simulated Sandbox (Safe Lab):** Drops malicious traffic in software state at the application layer without requiring Administrator privileges.
   2. **Windows Defender Host Firewall (Netsh):** Generates and directly executes real `netsh advfirewall firewall add rule` commands on the host OS when run with Administrator privileges, complete with rollback support.
+
+---
+
+### Q6: How does the platform enforce security access control and prevent unauthorized changes?
+- **Answer:** The platform features multi-role **Role-Based Access Control (RBAC)** distinguishing between `admin` (Chief Security Architect) and `analyst` (Tier-2 SOC Analyst). Critical operations such as toggling host firewall mode, retraining models, and clearing compliance state are restricted to administrators.
+
+### Q7: How does the system ensure data integrity and prevent state file corruption?
+- **Answer:** Rather than naive JSON writes, the `StateStore` persistence engine executes **atomic file replacements** (`os.replace`) backed by OS-level buffer flushing (`os.fsync`) and automatic `.bak` recovery backups.
 
 ---
 

@@ -122,264 +122,18 @@ MITRE_ATTACK_MAPPING = {
     }
 }
 
-# Whitelist of Trusted Protected Specific IPs (Critical Infrastructure)
-TRUSTED_WHITELIST_IPS = {
-    "10.0.0.1": "Perimeter Default Gateway",
-    "8.8.8.8": "Primary Google Public DNS",
-    "1.1.1.1": "Cloudflare Anycast Resolver",
-    "127.0.0.1": "Loopback Local Interface",
-    "10.0.0.254": "Internal DNS Server",
-    "192.168.1.1": "Core Switch Gateway"
-}
-
-# Protected CIDR Subnets (Internal Subnet Range)
-PROTECTED_CIDR_SUBNETS = [
-    (ipaddress.ip_network("10.0.0.0/24"), "Protected Internal Subnet"),
-    (ipaddress.ip_network("127.0.0.0/8"), "Localhost Loopback Network"),
-    (ipaddress.ip_network("192.168.1.0/24"), "Protected Management LAN")
-]
-
-def check_ip_whitelist(ip_str: str) -> tuple:
-    """
-    Checks if an IP address is immune to quarantine via specific IP whitelist or CIDR subnet.
-    Returns (is_whitelisted: bool, reason: str).
-    """
-    if not ip_str or not isinstance(ip_str, str):
-        return False, ""
-    
-    clean_ip = ip_str.strip()
-    if clean_ip in TRUSTED_WHITELIST_IPS:
-        return True, TRUSTED_WHITELIST_IPS[clean_ip]
-        
-    try:
-        ip_obj = ipaddress.ip_address(clean_ip)
-        for subnet, desc in PROTECTED_CIDR_SUBNETS:
-            if ip_obj in subnet:
-                return True, f"{desc} ({subnet})"
-    except ValueError:
-        pass
-        
-    return False, ""
-
-def validate_ip_address(ip_str: str) -> str:
-    """
-    Validates that ip_str is a legitimate IPv4 or IPv6 address.
-    Returns normalized canonical IP string if valid, otherwise raises ValueError.
-    Prevents shell command injection, formatting bypasses, and malformed inputs.
-    """
-    if not ip_str or not isinstance(ip_str, str):
-        raise ValueError(f"Invalid IP address input: '{ip_str}' (expected non-empty string)")
-    clean = ip_str.strip()
-    try:
-        ip_obj = ipaddress.ip_address(clean)
-        return str(ip_obj)
-    except ValueError as e:
-        raise ValueError(f"Invalid IP address '{clean}': {e}")
-
-def is_valid_ip(ip_str: str) -> bool:
-    """Checks if an input string is a valid IPv4 or IPv6 address."""
-    try:
-        validate_ip_address(ip_str)
-        return True
-    except (ValueError, TypeError):
-        return False
-
-def generate_firewall_rule(ip_str: str, action: str = "block") -> dict:
-    """
-    Generates sanitized Windows Defender Firewall / Netsh / PowerShell rule definitions.
-    Strictly validates IP address to prevent shell command injection.
-    Provides structured argument lists for safe execution without shell=True.
-    """
-    try:
-        valid_ip = validate_ip_address(ip_str)
-    except ValueError as err:
-        return {
-            "valid": False,
-            "error": str(err),
-            "ip": str(ip_str),
-            "rule_name": "",
-            "netsh_command": "",
-            "netsh_args": [],
-            "powershell_command": "",
-            "rollback_command": "",
-            "rollback_args": []
-        }
-
-    # Safe rule name: alphanumeric and underscore only
-    sanitized_ip_tag = valid_ip.replace(".", "_").replace(":", "_")
-    rule_name = f"AI_IDS_BLOCK_{sanitized_ip_tag}"
-    
-    # Safe argument lists for subprocess (shell=False)
-    netsh_args = ["netsh", "advfirewall", "firewall", "add", "rule", f"name={rule_name}", "dir=in", "action=block", f"remoteip={valid_ip}"]
-    rollback_args = ["netsh", "advfirewall", "firewall", "delete", "rule", f"name={rule_name}"]
-    
-    # Display string commands for UI / auditing (properly quoted)
-    netsh_cmd = f'netsh advfirewall firewall add rule name="{rule_name}" dir=in action=block remoteip={valid_ip}'
-    powershell_cmd = f'New-NetFirewallRule -DisplayName "{rule_name}" -Direction Inbound -Action Block -RemoteAddress "{valid_ip}"'
-    rollback_cmd = f'netsh advfirewall firewall delete rule name="{rule_name}"'
-    
-    return {
-        "valid": True,
-        "error": None,
-        "rule_name": rule_name,
-        "ip": valid_ip,
-        "netsh_command": netsh_cmd,
-        "netsh_args": netsh_args,
-        "powershell_command": powershell_cmd,
-        "rollback_command": rollback_cmd,
-        "rollback_args": rollback_args
-    }
-
-def execute_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
-    """
-    Executes or simulates firewall quarantine rule.
-    - Default is simulate_safe=True: Safe Sandbox Lab mode (no changes to host OS firewall).
-    - When simulate_safe=False: Executes netsh rule using safe argument list (shell=False).
-    - Strictly validates IP address before processing.
-    """
-    rule_spec = generate_firewall_rule(ip_str, action="block")
-    if not rule_spec.get("valid", False):
-        return {
-            "success": False,
-            "requires_elevation": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": rule_spec.get("error", "Invalid IP address"),
-            "status_message": f"Validation Error: {rule_spec.get('error')}",
-            "command": "",
-            "rule_name": "",
-            "mode": "Simulated Sandbox" if simulate_safe else "Windows Defender Netsh",
-            "simulated": simulate_safe
-        }
-        
-    valid_ip = rule_spec["ip"]
-    rule_name = rule_spec["rule_name"]
-    cmd_display = rule_spec["netsh_command"]
-    args_list = rule_spec["netsh_args"]
-    
-    if simulate_safe:
-        return {
-            "success": True,
-            "requires_elevation": False,
-            "returncode": 0,
-            "stdout": f"[SIMULATED_LAB] Rule {rule_name} added for IP {valid_ip} in software sandbox.",
-            "stderr": "",
-            "status_message": f"Simulated Quarantine Active: Traffic from {valid_ip} dropped in memory (Safe Lab - Host OS firewall unmodified)",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Simulated Sandbox",
-            "simulated": True
-        }
-        
-    try:
-        # Safe execution: shell=False with argument list
-        proc = subprocess.run(args_list, shell=False, capture_output=True, text=True, timeout=8)
-        stdout_txt = proc.stdout.strip()
-        stderr_txt = proc.stderr.strip()
-        combined_out = f"{stdout_txt} {stderr_txt}".strip()
-        
-        requires_elevation = "requires elevation" in combined_out.lower() or "administrator" in combined_out.lower()
-        success = (proc.returncode == 0) and ("ok." in stdout_txt.lower() or "ok" in stdout_txt.lower())
-        
-        status_msg = "Successfully applied to Windows Defender Firewall" if success else (
-            "Elevation required: Run terminal as Administrator to enforce OS rule" if requires_elevation else f"Command failed: {combined_out}"
-        )
-        return {
-            "success": success,
-            "requires_elevation": requires_elevation,
-            "returncode": proc.returncode,
-            "stdout": stdout_txt,
-            "stderr": stderr_txt,
-            "status_message": status_msg,
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "requires_elevation": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": str(e),
-            "status_message": f"Execution error: {str(e)}",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }
-
-def remove_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
-    """
-    Deletes or simulates deletion of Windows Defender firewall rule.
-    - Default is simulate_safe=True: Safe Sandbox Lab mode.
-    - When simulate_safe=False: Executes netsh rollback using safe argument list (shell=False).
-    - Returns success: True ONLY when deletion succeeds or is safely simulated.
-    """
-    rule_spec = generate_firewall_rule(ip_str, action="block")
-    if not rule_spec.get("valid", False):
-        return {
-            "success": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": rule_spec.get("error", "Invalid IP address"),
-            "status_message": f"Validation Error: {rule_spec.get('error')}",
-            "command": "",
-            "rule_name": "",
-            "mode": "Simulated Sandbox" if simulate_safe else "Windows Defender Netsh",
-            "simulated": simulate_safe
-        }
-        
-    valid_ip = rule_spec["ip"]
-    rule_name = rule_spec["rule_name"]
-    cmd_display = rule_spec["rollback_command"]
-    args_list = rule_spec["rollback_args"]
-    
-    if simulate_safe:
-        return {
-            "success": True,
-            "returncode": 0,
-            "stdout": f"[SIMULATED_LAB] Rule {rule_name} removed for IP {valid_ip}.",
-            "stderr": "",
-            "status_message": f"Simulated Quarantine Released: IP {valid_ip} unblocked in memory.",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Simulated Sandbox",
-            "simulated": True
-        }
-        
-    try:
-        # Safe execution: shell=False with argument list
-        proc = subprocess.run(args_list, shell=False, capture_output=True, text=True, timeout=8)
-        stdout_txt = proc.stdout.strip()
-        stderr_txt = proc.stderr.strip()
-        combined_out = f"{stdout_txt} {stderr_txt}".strip()
-        success = (proc.returncode == 0) and ("ok" in stdout_txt.lower() or len(stderr_txt) == 0)
-        
-        return {
-            "success": success,
-            "returncode": proc.returncode,
-            "stdout": stdout_txt,
-            "stderr": stderr_txt,
-            "status_message": "Firewall rule successfully removed from OS" if success else f"Rollback failed: {combined_out}",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "returncode": -1,
-            "stdout": "",
-            "stderr": str(e),
-            "status_message": f"Rollback error: {str(e)}",
-            "command": cmd_display,
-            "rule_name": rule_name,
-            "mode": "Windows Defender Netsh",
-            "simulated": False
-        }
+# Re-export validated firewall and whitelist capabilities from services.mitigation_service
+from services.mitigation_service import (
+    TRUSTED_WHITELIST_IPS,
+    PROTECTED_CIDR_SUBNETS,
+    check_ip_whitelist,
+    validate_ip_address,
+    is_valid_ip,
+    is_safe_to_block_ip,
+    generate_firewall_rule,
+    execute_firewall_rule,
+    remove_firewall_rule
+)
 
 def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
     """
@@ -531,8 +285,42 @@ def set_active_model(model_name: str):
 def get_active_model_name():
     return _active_model_name
 
-def prepare_feature_row(data: dict) -> pd.DataFrame:
-    """Prepares and normalizes input data vector matching training features."""
+def validate_artifacts() -> tuple[bool, str]:
+    """
+    Validates presence, compatibility, and health of machine learning artifacts (Finding C).
+    Verifies that model files exist, feature dimensions match, and encoders are operational.
+    """
+    required_files = [
+        (RF_MODEL_PATH, "Random Forest Model"),
+        (XGB_MODEL_PATH, "XGBoost Model"),
+        (ISO_MODEL_PATH, "Isolation Forest Model"),
+        (SCALER_PATH, "Feature Scaler"),
+        (LABEL_ENCODER_PATH, "Label Encoder"),
+        (FEATURE_NAMES_PATH, "Feature Names"),
+        (os.path.join(MODELS_DIR, "categorical_maps.joblib"), "Categorical Maps")
+    ]
+    for p, name in required_files:
+        if not os.path.exists(p):
+            return False, f"Missing required artifact: {name} ({os.path.basename(p)})"
+
+    try:
+        load_all_artifacts()
+        if _scaler is not None and _feature_names is not None:
+            if hasattr(_scaler, "n_features_in_") and _scaler.n_features_in_ != len(_feature_names):
+                return False, f"Dimension mismatch: Scaler fitted on {_scaler.n_features_in_} features, but {len(_feature_names)} defined."
+        if _label_encoder is not None and hasattr(_label_encoder, "classes_"):
+            if len(_label_encoder.classes_) < 2:
+                return False, "Label encoder contains fewer than 2 target classes."
+        return True, "All model artifacts verified and operational."
+    except Exception as e:
+        return False, f"Artifact health check error: {str(e)}"
+
+def prepare_feature_row(data: dict, return_unseen: bool = False):
+    """
+    Prepares and normalizes input data vector matching training features.
+    Explicitly handles unknown/unseen categorical levels by mapping them to reserved
+    code 0 rather than silently coercing them into an arbitrary existing class (Finding A).
+    """
     load_all_artifacts()
     
     # Standard baseline defaults from UNSW-NB15 normal operating baseline
@@ -576,11 +364,29 @@ def prepare_feature_row(data: dict) -> pd.DataFrame:
     service_map = _categorical_maps.get("service", {}) if _categorical_maps else {}
     state_map = _categorical_maps.get("state", {}) if _categorical_maps else {}
     
-    row["proto_code"] = float(proto_map.get(proto, 0))
-    row["service_code"] = float(service_map.get(service, 0))
-    row["state_code"] = float(state_map.get(state, 0))
+    unseen_cats = []
+    # Explicit mapping: code 0 is strictly reserved for 'unknown'
+    if proto in proto_map:
+        row["proto_code"] = float(proto_map[proto])
+    else:
+        unseen_cats.append(f"proto '{proto}'")
+        row["proto_code"] = 0.0
+
+    if service in service_map:
+        row["service_code"] = float(service_map[service])
+    else:
+        unseen_cats.append(f"service '{service}'")
+        row["service_code"] = 0.0
+
+    if state in state_map:
+        row["state_code"] = float(state_map[state])
+    else:
+        unseen_cats.append(f"state '{state}'")
+        row["state_code"] = 0.0
     
     df_row = pd.DataFrame([row])[_feature_names]
+    if return_unseen:
+        return df_row, unseen_cats
     return df_row
 
 def compute_shap_explanation(df_scaled: pd.DataFrame, predicted_class_idx: int, predicted_threat: str = "Normal", model_name: str = "random_forest") -> dict:
@@ -659,11 +465,38 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
     load_all_artifacts()
     t_start = time.time()
     
+    # Defensive artifact check (Finding C)
+    valid_ok, valid_msg = validate_artifacts()
+    if not valid_ok:
+        return {
+            "status": "ERROR",
+            "error": valid_msg,
+            "is_anomaly": False,
+            "anomaly_score": 0.0,
+            "predicted_threat": "Artifact Error",
+            "confidence": 0.0,
+            "attack_probability": 0.0,
+            "risk_level": "High",
+            "risk_score": 65.0,
+            "risk_breakdown": {"error": valid_msg},
+            "recommended_action": f"Service Alert: Machine learning artifacts unavailable ({valid_msg})",
+            "action_code": "ERROR_FLAG",
+            "is_whitelisted": False,
+            "whitelist_reason": "",
+            "mitre_attack": MITRE_ATTACK_MAPPING.get("Normal"),
+            "firewall_rule_specs": {"valid": False, "error": valid_msg},
+            "explanation": f"System Alert: ML detection pipeline unavailable ({valid_msg}). Please train or inspect models.",
+            "shap_explanation": {"top_features": []},
+            "all_probabilities": {},
+            "model_used": "none",
+            "prediction_latency_ms": 0.0
+        }
+
     selected_model_name = model_override or _active_model_name
     model = _xgb_model if selected_model_name == "xgboost" else _rf_model
     
-    # 1. Prepare and scale input
-    X_raw = prepare_feature_row(flow_data)
+    # 1. Prepare and scale input with explicit unseen-category tracking (Finding A)
+    X_raw, unseen_cats = prepare_feature_row(flow_data, return_unseen=True)
     X_scaled = pd.DataFrame(_scaler.transform(X_raw), columns=_feature_names)
     
     # 2. Isolation Forest Anomaly Detection (FR-05)
@@ -707,12 +540,15 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
     if is_anomaly:
         rationale_points.append(f"Isolation Forest flagged statistical anomaly (anomaly score: {anomaly_score:.2f})")
     
+    if unseen_cats:
+        rationale_points.append(f"Note: Event contains unseen category features ({', '.join(unseen_cats)}), evaluated with conservative unknown baseline.")
+        
     if not rationale_points:
         rationale_points.append("Network flow telemetry conforms to expected operational baseline profile.")
         
     explanation_text = " • " + "\n • ".join(rationale_points)
     
-    # 5. Multi-Factor Calibrated Risk Scoring Engine (Standardized CVSS Tiers)
+    # 5. Multi-Factor Calibrated Risk Scoring Engine (Standardized 0-100% composite scale - Finding B)
     base_severity = THREAT_IMPACT_WEIGHTS.get(predicted_threat, 0.50)
     attack_probability = 1.0 - all_probs.get("Normal", 0.0) if predicted_threat != "Normal" else (1.0 - confidence)
     
@@ -729,23 +565,24 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
     if port_count >= 5:
         telemetry_modifier += min(0.30, port_count * 0.015)
     telemetry_modifier = min(0.35, telemetry_modifier)
+    norm_telemetry = min(1.0, telemetry_modifier / 0.35)
 
     if predicted_threat == "Normal":
         if not is_anomaly:
-            # Low benign baseline (0.0 to 28.0)
-            risk_score = round(min(28.0, (attack_probability * 15.0) + (anomaly_score * 10.0)), 1)
+            # Low benign baseline (0.0 to 29.0)
+            risk_score = round(min(29.0, (attack_probability * 15.0) + (anomaly_score * 14.0)), 1)
         else:
             # Statistical anomaly on normal baseline (e.g. zero-day or traffic spike)
             if anomaly_score >= 0.65:
                 # Escalates to Medium risk
-                risk_score = round(min(58.0, 32.0 + (anomaly_score * 25.0)), 1)
+                risk_score = round(min(59.0, 30.0 + (anomaly_score * 28.0)), 1)
             else:
-                risk_score = round(min(29.0, 10.0 + (anomaly_score * 20.0)), 1)
+                risk_score = round(min(29.9, 10.0 + (anomaly_score * 19.9)), 1)
     else:
-        # Attack threats: composite severity
-        # Risk = (Base Severity * 55) + (Confidence * 25) + (Anomaly * 15) + (Telemetry * 15)
-        raw_risk = (base_severity * 55.0) + (confidence * 25.0) + (anomaly_score * 15.0) + (telemetry_modifier * 15.0)
-        risk_score = round(min(99.0, max(30.0, raw_risk)), 1)
+        # Attack threats: Normalized composite severity (weights sum to exactly 100.0)
+        # 40% Base Severity + 30% Model Confidence + 15% Anomaly Score + 15% Telemetry Modifiers
+        raw_risk = (base_severity * 40.0) + (confidence * 30.0) + (anomaly_score * 15.0) + (norm_telemetry * 15.0)
+        risk_score = round(min(100.0, max(30.0, raw_risk)), 1)
         
     risk_level = get_risk_level_from_score(risk_score)
     
@@ -769,9 +606,10 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
         "model_confidence": round(confidence, 4),
         "anomaly_score": round(anomaly_score, 4),
         "telemetry_modifier": round(telemetry_modifier, 4),
+        "normalized_telemetry": round(norm_telemetry if predicted_threat != "Normal" else 0.0, 4),
         "calculated_risk": risk_score,
         "risk_level": risk_level,
-        "formula": "Risk = (Base_CVSS * 55) + (Confidence * 25) + (Anomaly * 15) + (Telemetry * 15)" if predicted_threat != "Normal" else "Risk = (Attack_Prob * 15) + (Anomaly * 10)",
+        "formula": "Composite Risk (0-100) = (Base_CVSS * 40) + (Confidence * 30) + (Anomaly * 15) + (Telemetry * 15)" if predicted_threat != "Normal" else "Baseline Risk = (Attack_Prob * 15) + (Anomaly * 14)",
         "tier_thresholds": "Low: 0-29.9 | Medium: 30-59.9 | High: 60-79.9 | Critical: 80-100"
     }
         
@@ -819,6 +657,7 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
         "whitelist_reason": whitelist_reason,
         "mitre_attack": mitre_info,
         "firewall_rule_specs": firewall_rule_specs,
+        "unseen_categories": unseen_cats,
         "explanation": explanation_text,
         "shap_explanation": shap_info,
         "all_probabilities": all_probs,

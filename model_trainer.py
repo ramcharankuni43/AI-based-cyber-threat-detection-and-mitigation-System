@@ -54,8 +54,9 @@ def compute_per_class_metrics(y_true, y_pred, classes):
     """
     Computes rigorous per-class evaluation metrics including Precision, Recall,
     F1-Score, False Positive Rate (FPR), and False Negative Rate (FNR).
+    Defensively supplies labels=range(len(classes)) to avoid shape mismatch on absent classes.
     """
-    cm = confusion_matrix(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred, labels=list(range(len(classes))))
     per_class = {}
     for idx, cls_name in enumerate(classes):
         tp = int(cm[idx, idx])
@@ -112,14 +113,25 @@ def load_and_preprocess_dataset():
         if col in df.columns:
             df[col] = df[col].fillna("unknown").astype(str)
 
-    # Encode categoricals
-    proto_map = {val: idx for idx, val in enumerate(df["proto"].unique())}
-    service_map = {val: idx for idx, val in enumerate(df["service"].unique())}
-    state_map = {val: idx for idx, val in enumerate(df["state"].unique())}
+    # Encode categoricals with explicit code 0 reserved for unseen/unknown categories
+    proto_unique = sorted([str(v).lower() for v in df["proto"].dropna().unique() if str(v).lower() != "unknown"])
+    proto_map = {"unknown": 0}
+    for idx, val in enumerate(proto_unique, start=1):
+        proto_map[val] = idx
+
+    service_unique = sorted([str(v).lower() for v in df["service"].dropna().unique() if str(v).lower() != "unknown"])
+    service_map = {"unknown": 0}
+    for idx, val in enumerate(service_unique, start=1):
+        service_map[val] = idx
+
+    state_unique = sorted([str(v).upper() for v in df["state"].dropna().unique() if str(v).upper() != "UNKNOWN"])
+    state_map = {"unknown": 0}
+    for idx, val in enumerate(state_unique, start=1):
+        state_map[val] = idx
     
-    df["proto_code"] = df["proto"].map(proto_map).fillna(0)
-    df["service_code"] = df["service"].map(service_map).fillna(0)
-    df["state_code"] = df["state"].map(state_map).fillna(0)
+    df["proto_code"] = df["proto"].astype(str).str.lower().map(proto_map).fillna(0).astype(int)
+    df["service_code"] = df["service"].astype(str).str.lower().map(service_map).fillna(0).astype(int)
+    df["state_code"] = df["state"].astype(str).str.upper().map(state_map).fillna(0).astype(int)
     
     encoded_feature_cols = NUMERICAL_FEATURES + ["proto_code", "service_code", "state_code"]
     
@@ -156,14 +168,14 @@ def load_and_preprocess_dataset():
     
     # Post-SMOTE Categorical Constraint Enforcement:
     # Snap continuous interpolated values of categorical columns to their nearest valid discrete levels
-    cat_cols_to_snap = ["proto_code", "service_code", "state_code"]
-    for cat_col in cat_cols_to_snap:
+    cat_cols_to_snap = [("proto_code", proto_map), ("service_code", service_map), ("state_code", state_map)]
+    for cat_col, cat_mapping in cat_cols_to_snap:
         if cat_col in encoded_feature_cols:
             col_idx = encoded_feature_cols.index(cat_col)
             c_mean = scaler.mean_[col_idx]
             c_scale = scaler.scale_[col_idx]
-            num_cats = len(df[cat_col.replace("_code", "")].unique())
-            valid_discrete_scaled = np.array([(k - c_mean) / c_scale for k in range(num_cats)])
+            valid_codes = list(cat_mapping.values())
+            valid_discrete_scaled = np.array([(k - c_mean) / c_scale for k in valid_codes])
             col_vals = X_train_balanced[cat_col].values
             diffs = np.abs(col_vals[:, None] - valid_discrete_scaled[None, :])
             nearest_indices = diffs.argmin(axis=1)
@@ -205,6 +217,8 @@ def train_and_evaluate_all():
     prep = load_and_preprocess_dataset()
     X_train = prep["X_train"]
     y_train = prep["y_train"]
+    X_val = prep["X_val"]
+    y_val = prep["y_val"]
     X_test = prep["X_test"]
     y_test = prep["y_test"]
     le = prep["label_encoder"]
@@ -229,6 +243,12 @@ def train_and_evaluate_all():
     t0 = time.time()
     rf_clf.fit(X_train, y_train)
     rf_train_time = round(time.time() - t0, 3)
+
+    # Validation Split Evaluation (Hyperparameter & Generalization Check)
+    y_pred_rf_val = rf_clf.predict(X_val)
+    rf_val_acc = accuracy_score(y_val, y_pred_rf_val)
+    rf_val_f1 = f1_score(y_val, y_pred_rf_val, average="weighted", zero_division=0)
+    print(f"[*] RF Validation Split Check - Accuracy: {rf_val_acc:.4f}, F1: {rf_val_f1:.4f}")
     
     # RF Test Prediction & Latency
     t0 = time.time()
@@ -247,7 +267,7 @@ def train_and_evaluate_all():
     normal_mask = (y_test == normal_idx)
     rf_fpr = float(np.sum((normal_mask) & (y_pred_rf != normal_idx)) / np.sum(normal_mask))
     
-    # Unbiased ROC-AUC calculation (No fabricated fallback)
+    # Unbiased ROC-AUC calculation (Safe None serialization)
     try:
         y_test_dummies = pd.get_dummies(y_test)
         rf_roc_auc = float(roc_auc_score(y_test_dummies, y_prob_rf, multi_class="ovr", average="weighted"))
@@ -259,7 +279,7 @@ def train_and_evaluate_all():
         print(f"[!] Warning: ROC-AUC calculation failed for Random Forest ({e}). Reporting as unavailable.")
         rf_roc_auc = None
         
-    rf_cm = confusion_matrix(y_test, y_pred_rf).tolist()
+    rf_cm = confusion_matrix(y_test, y_pred_rf, labels=list(range(len(classes)))).tolist()
     rf_per_class = compute_per_class_metrics(y_test, y_pred_rf, classes)
     rf_brier = round(float(np.mean(np.sum((pd.get_dummies(y_test) - y_prob_rf)**2, axis=1))), 4)
     
@@ -280,8 +300,14 @@ def train_and_evaluate_all():
         n_jobs=-1
     )
     t0 = time.time()
-    xgb_clf.fit(X_train, y_train)
+    xgb_clf.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
     xgb_train_time = round(time.time() - t0, 3)
+
+    # Validation Split Evaluation
+    y_pred_xgb_val = xgb_clf.predict(X_val)
+    xgb_val_acc = accuracy_score(y_val, y_pred_xgb_val)
+    xgb_val_f1 = f1_score(y_val, y_pred_xgb_val, average="weighted", zero_division=0)
+    print(f"[*] XGBoost Validation Split Check - Accuracy: {xgb_val_acc:.4f}, F1: {xgb_val_f1:.4f}")
     
     # XGB Test Prediction & Latency
     t0 = time.time()
@@ -309,7 +335,7 @@ def train_and_evaluate_all():
         print(f"[!] Warning: ROC-AUC calculation failed for XGBoost ({e}). Reporting as unavailable.")
         xgb_roc_auc = None
         
-    xgb_cm = confusion_matrix(y_test, y_pred_xgb).tolist()
+    xgb_cm = confusion_matrix(y_test, y_pred_xgb, labels=list(range(len(classes)))).tolist()
     xgb_per_class = compute_per_class_metrics(y_test, y_pred_xgb, classes)
     xgb_brier = round(float(np.mean(np.sum((pd.get_dummies(y_test) - y_prob_xgb)**2, axis=1))), 4)
     
@@ -329,6 +355,12 @@ def train_and_evaluate_all():
     t0 = time.time()
     iso_forest.fit(X_train_normal)
     iso_train_time = round(time.time() - t0, 3)
+
+    # Validation Split Evaluation for Isolation Forest
+    binary_y_val = (y_val != normal_idx).astype(int)
+    binary_iso_val_pred = (iso_forest.predict(X_val) == -1).astype(int)
+    iso_val_f1 = f1_score(binary_y_val, binary_iso_val_pred, zero_division=0)
+    print(f"[*] Isolation Forest Validation Split Check - Anomaly F1: {iso_val_f1:.4f}")
     
     t0 = time.time()
     iso_pred_raw = iso_forest.predict(X_test)
@@ -387,7 +419,8 @@ def train_and_evaluate_all():
         "dataset": {
             "name": "Synthetic Network Intrusion Benchmark (modeled after UNSW-NB15 / CICIDS2017 distributions)",
             "data_type": "Synthetic / Simulated Benchmark",
-            "benchmark_note": "Dataset is synthetically generated with statistical distributions modeled after UNSW-NB15 and CICIDS2017. High metric scores reflect performance on this synthetic evaluation set and do not establish guaranteed operational efficacy on heterogeneous real-world production networks.",
+            "benchmark_note": "Dataset is synthetically generated with statistical distributions modeled after UNSW-NB15 and CICIDS2017 (via data_generator.py). High metric scores reflect performance on this synthetic evaluation set and do not establish guaranteed operational efficacy on heterogeneous real-world production networks.",
+            "provenance": "Generated via data_generator.py modeled on UNSW-NB15/CICIDS2017 feature schemas",
             "total_samples": len(prep["raw_df"]),
             "original_train_samples": prep["original_train_count"],
             "smote_resampled_train_samples": len(X_train),
@@ -404,6 +437,19 @@ def train_and_evaluate_all():
         },
         "target_f1_score": 0.90,
         "latency_threshold_ms": 100.0,
+        "validation_metrics": {
+            "random_forest": {
+                "accuracy": round(float(rf_val_acc), 4),
+                "f1_score": round(float(rf_val_f1), 4)
+            },
+            "xgboost": {
+                "accuracy": round(float(xgb_val_acc), 4),
+                "f1_score": round(float(xgb_val_f1), 4)
+            },
+            "isolation_forest": {
+                "anomaly_f1": round(float(iso_val_f1), 4)
+            }
+        },
         "models": {
             "random_forest": {
                 "name": "Random Forest Classifier",
@@ -416,7 +462,7 @@ def train_and_evaluate_all():
                 "recall_macro": round(float(rf_rec_macro), 4),
                 "f1_score_macro": round(float(rf_f1_macro), 4),
                 "false_positive_rate": round(float(rf_fpr), 4),
-                "roc_auc": round(float(rf_roc_auc), 4),
+                "roc_auc": round(float(rf_roc_auc), 4) if rf_roc_auc is not None else None,
                 "brier_score": rf_brier,
                 "prediction_latency_ms": round(float(rf_latency_per_flow), 3),
                 "train_time_sec": round(float(rf_train_time), 2),
@@ -436,7 +482,7 @@ def train_and_evaluate_all():
                 "recall_macro": round(float(xgb_rec_macro), 4),
                 "f1_score_macro": round(float(xgb_f1_macro), 4),
                 "false_positive_rate": round(float(xgb_fpr), 4),
-                "roc_auc": round(float(xgb_roc_auc), 4),
+                "roc_auc": round(float(xgb_roc_auc), 4) if xgb_roc_auc is not None else None,
                 "brier_score": xgb_brier,
                 "prediction_latency_ms": round(float(xgb_latency_per_flow), 3),
                 "train_time_sec": round(float(xgb_train_time), 2),
@@ -453,7 +499,7 @@ def train_and_evaluate_all():
                 "recall": round(float(iso_rec), 4),
                 "f1_score": round(float(iso_f1), 4),
                 "false_positive_rate": round(float(iso_fpr), 4),
-                "roc_auc": round(float(iso_roc_auc), 4),
+                "roc_auc": round(float(iso_roc_auc), 4) if iso_roc_auc is not None else None,
                 "prediction_latency_ms": round(float(iso_latency_per_flow), 3),
                 "train_time_sec": round(float(iso_train_time), 2),
                 "meets_latency_target": bool(iso_latency_per_flow < 100.0)

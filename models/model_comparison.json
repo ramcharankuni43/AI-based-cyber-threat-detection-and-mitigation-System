@@ -2,7 +2,8 @@
   "dataset": {
     "name": "Synthetic Network Intrusion Benchmark (modeled after UNSW-NB15 / CICIDS2017 distributions)",
     "data_type": "Synthetic / Simulated Benchmark",
-    "benchmark_note": "Dataset is synthetically generated with statistical distributions modeled after UNSW-NB15 and CICIDS2017. High metric scores reflect performance on this synthetic evaluation set and do not establish guaranteed operational efficacy on heterogeneous real-world production networks.",
+    "benchmark_note": "Dataset is synthetically generated with statistical distributions modeled after UNSW-NB15 and CICIDS2017 (via data_generator.py). High metric scores reflect performance on this synthetic evaluation set and do not establish guaranteed operational efficacy on heterogeneous real-world production networks.",
+    "provenance": "Generated via data_generator.py modeled on UNSW-NB15/CICIDS2017 feature schemas",
     "total_samples": 10000,
     "original_train_samples": 7000,
     "smote_resampled_train_samples": 23100,
@@ -26,6 +27,19 @@
   },
   "target_f1_score": 0.9,
   "latency_threshold_ms": 100.0,
+  "validation_metrics": {
+    "random_forest": {
+      "accuracy": 0.9933,
+      "f1_score": 0.9932
+    },
+    "xgboost": {
+      "accuracy": 0.9993,
+      "f1_score": 0.9993
+    },
+    "isolation_forest": {
+      "anomaly_f1": 0.7935
+    }
+  },
   "models": {
     "random_forest": {
       "name": "Random Forest Classifier",
@@ -38,10 +52,10 @@
       "recall_macro": 0.9725,
       "f1_score_macro": 0.9796,
       "false_positive_rate": 0.0048,
-      "roc_auc": 0.9995,
-      "brier_score": 0.0207,
-      "prediction_latency_ms": 0.046,
-      "train_time_sec": 1.31,
+      "roc_auc": 0.9996,
+      "brier_score": 0.0206,
+      "prediction_latency_ms": 0.043,
+      "train_time_sec": 1.13,
       "confusion_matrix": [
         [
           75,
@@ -181,9 +195,9 @@
       "f1_score_macro": 0.9988,
       "false_positive_rate": 0.0012,
       "roc_auc": 1.0,
-      "brier_score": 0.0012,
-      "prediction_latency_ms": 0.008,
-      "train_time_sec": 1.65,
+      "brier_score": 0.0019,
+      "prediction_latency_ms": 0.006,
+      "train_time_sec": 1.83,
       "confusion_matrix": [
         [
           75,
@@ -314,58 +328,58 @@
     "isolation_forest": {
       "name": "Isolation Forest",
       "type": "Unsupervised Anomaly Detection",
-      "accuracy": 0.7887,
-      "precision": 0.8792,
-      "recall": 0.6148,
-      "f1_score": 0.7236,
-      "false_positive_rate": 0.0691,
-      "roc_auc": 0.8805,
-      "prediction_latency_ms": 0.02,
-      "train_time_sec": 0.33,
+      "accuracy": 0.8473,
+      "precision": 0.8996,
+      "recall": 0.7437,
+      "f1_score": 0.8143,
+      "false_positive_rate": 0.0679,
+      "roc_auc": 0.8865,
+      "prediction_latency_ms": 0.019,
+      "train_time_sec": 0.4,
       "meets_latency_target": true
     }
   },
   "feature_importance": [
     {
       "feature": "dbytes",
-      "importance": 0.1179
+      "importance": 0.1236
     },
     {
       "feature": "failed_login_count",
-      "importance": 0.1025
+      "importance": 0.1085
     },
     {
       "feature": "sbytes",
-      "importance": 0.0922
-    },
-    {
-      "feature": "spkts",
-      "importance": 0.089
+      "importance": 0.0939
     },
     {
       "feature": "dttl",
-      "importance": 0.0859
+      "importance": 0.0913
     },
     {
-      "feature": "ct_dst_ltm",
-      "importance": 0.048
+      "feature": "spkts",
+      "importance": 0.0867
     },
     {
-      "feature": "connection_count",
-      "importance": 0.0453
-    },
-    {
-      "feature": "dinpkt",
-      "importance": 0.0434
-    },
-    {
-      "feature": "ct_src_dport_ltm",
-      "importance": 0.042
+      "feature": "state_code",
+      "importance": 0.0474
     },
     {
       "feature": "synack",
-      "importance": 0.0415
+      "importance": 0.0435
+    },
+    {
+      "feature": "connection_count",
+      "importance": 0.0417
+    },
+    {
+      "feature": "ackdat",
+      "importance": 0.0397
+    },
+    {
+      "feature": "dinpkt",
+      "importance": 0.0355
     }
   ],
-  "generated_at": "2026-10-11 18:52:48"
+  "generated_at": "2026-11-03 19:35:34"
 }
