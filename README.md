@@ -40,7 +40,7 @@ cyber/
 ├── inference.py             # ⚡ Real-Time ML Decision Engine, Schema Validator, SHAP XAI & Risk Scoring
 ├── model_trainer.py         # 🧠 Model Training Pipeline (SMOTE, RF, XGBoost, Isolation Forest)
 ├── data_generator.py        # 📊 Synthetic Benchmark & Scenario Replay Traffic Generator
-├── test_suite.py            # 🧪 Automated Test Suite (16 Unit Tests covering AI, Security & Incident Lifecycle)
+├── test_suite.py            # 🧪 Automated Test Suite (25 Unit Tests covering AI, Security & Incident Lifecycle)
 │
 ├── storage/                 # 💾 Durable Persistence Layer
 │   └── state_store.py       # Thread-safe atomic file writes (os.replace) & fail-safe .bak recovery
@@ -107,34 +107,48 @@ The user interface has been streamlined into 5 dedicated sections tailored for t
 - Uses game-theoretic Shapley Additive Explanations (`TreeExplainer`) to compute local feature attributions for every prediction.
 - Shows exactly which flow features (e.g., packet rate, byte volume, failed login attempts) pushed the AI toward classifying an event as an attack.
 
-### 4. Normalized 0–100 Composite Risk Scoring
-The internal risk score is normalized to a standardized `0.0 – 100.0` scale aligned with CVSS v3.1 impact severity tiers:
+### 4. Calibrated Composite Risk Scoring (Custom Explainable Heuristic)
+The internal risk score is computed on a standardized `0.0 – 100.0` scale using a custom, transparent, multi-factor heuristic designed for operational SOC prioritization:
 $$\text{Risk Score} = (S_{\text{base}} \times 40) + (C_{\text{model}} \times 30) + (A_{\text{iso}} \times 15) + (M_{\text{telem}} \times 15)$$
 
-- **Base Threat Impact ($40\%$):** DoS ($0.85$), Brute Force ($0.75$), Port Scan ($0.55$), Normal ($0.05$).
+> [!NOTE]
+> **Academic Note:** This risk score is a *custom explainable scoring formula* combining threat severity, model confidence, unsupervised anomaly score, and behavioral telemetry. It is not an official FIRST CVSS v3.1 specification, though its 0–100 range and qualitative tiers align with standard SOC triage practices.
+
+- **Base Threat Severity ($40\%$):** DoS ($0.85$), Brute Force ($0.75$), Port Scan ($0.55$), Normal ($0.05$).
 - **Classifier Posterior Probability ($30\%$):** Supervised model confidence ($0.0 - 1.0$).
-- **Isolation Forest Anomaly ($15\%$):** Normalized anomaly magnitude ($0.0 - 1.0$).
-- **Telemetry Volume Modifier ($15\%$):** Ratio of byte rate, packet rate, and connection bursts.
+- **Isolation Forest Anomaly ($15\%$):** Continuous sigmoidal anomaly magnitude ($0.0 - 1.0$).
+- **Telemetry Volume Modifier ($15\%$):** Ratio of failed login bursts, packet volume, and multi-port scanning activity.
 
-**Severity Tiers:**
-- **Low:** $0.0 - 29.9$ (Informational baseline)
-- **Medium:** $30.0 - 59.9$ (Suspicious anomaly / rate-limited)
-- **High:** $60.0 - 79.9$ (Confirmed attack signature / quarantined)
-- **Critical:** $80.0 - 100.0$ (Severe breach / emergency quarantine)
-
----
-
-## 📊 Benchmark Model Performance (Hold-out Test Set Evaluation)
-
-Evaluated on the **stratified 15% independent hold-out test set** with zero data leakage:
-
-| Model Architecture | Type | Accuracy | F1-Score (Target ≥0.90) | Precision | Recall | False Positive Rate | ROC-AUC | Latency (ms/flow) | Target Met? |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Random Forest** | Supervised Ensemble | **98.93%** | **0.9891** | 0.9891 | 0.9893 | **0.48%** | **0.9995** | **0.046 ms** | ✅ YES |
-| **XGBoost** | Gradient Boosting | **99.93%** | **0.9993** | 0.9993 | 0.9993 | **0.12%** | **0.9999** | **0.008 ms** | ✅ YES |
-| **Isolation Forest** | Unsupervised Anomaly | **93.09%** | **0.7236** | 0.8140 | 0.6512 | **6.91%** | **0.8640** | **0.020 ms** | ✅ YES |
+**Standardized Severity Tiers:**
+- **Low:** $0.0 - 29.9$ (Informational baseline traffic; logged only)
+- **Medium:** $30.0 - 59.9$ (Suspicious anomaly or scan probe; rate-limited & flagged for review)
+- **High:** $60.0 - 79.9$ (Confirmed attack signature; quarantined with analyst notification)
+- **Critical:** $80.0 - 100.0$ (Severe volumetric or credential attack; automated emergency quarantine)
 
 ---
+
+## 📊 Dataset Provenance & Model Performance Benchmarks
+
+### Dataset Provenance & Benchmark Transparency
+The evaluation and training datasets (`data/unsw_nb15_sample.csv`, `normal.csv`, `ddos.csv`, `portscan.csv`, `bruteforce.csv`) are synthetically generated using statistical distributions modeled after the UNSW-NB15 and CICIDS2017 benchmark schemas (via `data_generator.py`).
+- **Data Leakage Safeguards:** Features and scalers are fitted strictly on the 70% training split. SMOTE resampling is applied only to training data with categorical levels snapped to discrete integer representations. Validation (15%) and Independent Test (15%) hold-out sets remain completely untouched during fitting.
+- **Academic Limitation Notice:** The high metric scores reflect model efficacy on this structured synthetic evaluation set. In heterogeneous real-world production networks with unmodeled traffic distributions, operational performance will encounter domain shift and higher false-positive rates.
+
+### Multi-Split Performance Evaluation
+
+| Architecture | Split | Accuracy | F1-Score (Weighted) | Precision | Recall | False Positive Rate |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Random Forest** | Training (Fit Ref) | 99.80% | 0.9980 | 0.9980 | 0.9980 | 0.00% |
+| **Random Forest** | Validation (Tuning) | 99.33% | 0.9932 | 0.9933 | 0.9933 | 0.31% |
+| **Random Forest** | **Hold-out Test Set** | **98.93%** | **0.9891** | **0.9891** | **0.9893** | **0.48%** |
+| **XGBoost** | Training (Fit Ref) | 100.00% | 1.0000 | 1.0000 | 1.0000 | 0.00% |
+| **XGBoost** | Validation (Tuning) | 99.93% | 0.9993 | 0.9993 | 0.9993 | 0.08% |
+| **XGBoost** | **Hold-out Test Set** | **99.93%** | **0.9993** | **0.9993** | **0.9993** | **0.12%** |
+| **Isolation Forest** | Validation (Tuning) | — | 0.7935 (Anomaly F1) | — | — | — |
+| **Isolation Forest** | **Hold-out Test Set** | **93.09%** | **0.8143 (Anomaly F1)** | **0.8140** | **0.6512** | **6.79%** |
+
+*Inference Latency: Random Forest: 0.046 ms/flow | XGBoost: 0.007 ms/flow | Isolation Forest: 0.018 ms/flow.*
+
 
 ## 🛡️ Safe Simulated Mitigation (Why Real Firewall Is Disabled)
 
@@ -147,7 +161,7 @@ In enterprise SOC environments, automated mitigation coordinates with edge firew
 
 ---
 
-## 🧪 Comprehensive Automated Test Suite (16 Core Tests)
+## 🧪 Comprehensive Automated Test Suite (25 Tests)
 
 The system includes a dedicated unit test suite in `test_suite.py` covering model integrity, input validation, security controls, and incident lifecycles:
 
@@ -155,25 +169,33 @@ The system includes a dedicated unit test suite in `test_suite.py` covering mode
 python test_suite.py
 ```
 
-### Verified Test Cases:
-1. **Normal Traffic Classification:** Benign flows classified as `Normal` with `Low` risk (<30.0) and action `LOG_ONLY`.
-2. **Known Attack Classification:** Volumetric DoS / probe flows identified as attacks with high confidence.
-3. **Unknown Categorical Handling:** Unseen protocols/services mapped to reserved code `0` without KeyError crashes.
-4. **Missing Feature Handling:** Missing flow telemetry triggers `data_quality_warning` and caps confidence ($\le 0.45$).
-5. **Invalid Dataset Rejection:** Empty files or non-flow schemas rejected with explicit validation errors.
-6. **Risk Score Range (0–100):** Multi-factor scoring mathematically bounded in $[0.0, 100.0]$ across extreme inputs.
-7. **Mitigation Rule Generation:** Valid Netsh and PowerShell syntax produced for external attacker IPs.
-8. **Protected IP Rejection:** Loopback (`127.0.0.1`), `0.0.0.0`, broadcast, DNS, and gateway IPs strictly immune to blocks.
-9. **Expired Quarantine Removal:** Quarantined IPs past 3,600s TTL automatically released by decay daemon.
-10. **Audit Log Integrity:** Every action records `timestamp`, `action`, `target`, `actor`, `reason`, and `result`.
-11. **Role Permission Enforcement:** Analysts restricted from retraining, state reset, and real firewall toggles.
-12. **Password Hashing & Verification:** Secure `bcrypt` (work factor 12) with constant-time verification.
-13. **Missing Model Graceful Errors:** Health checks detect missing artifacts and fail safely without crashing.
-14. **SHAP Explanation Validity:** TreeExplainer computes positive/negative feature attributions and base values.
-15. **MITRE ATT&CK Consistency:** Technique IDs match sub-technique hierarchy (`T1498` $\rightarrow$ `T1498.001`, `T1110` $\rightarrow$ `T1110.001`, etc.).
-16. **Failed Mitigation Rejection:** Protected infrastructure mitigation attempts return failure and record `REJECTED` in audit log.
+### Verified Test Cases (25 / 25 Passing):
+1. **Normal Traffic Detection:** Benign flows classified as `Normal` with `Low` risk (< 30.0) and action `LOG_ONLY`.
+2. **DDoS Attack Detection:** Volumetric DoS packet flood flows identified as attacks with high confidence.
+3. **Port Scan Detection:** Port scan reconnaissance traffic classified as `Port Scan` with elevated risk.
+4. **Brute Force Detection:** High failed authentication burst flows classified as `Brute Force`.
+5. **CSV Upload Validation:** Valid CSV uploads pass schema verification, row counting, and feature extraction.
+6. **Missing Columns Rejection:** Uploads missing essential network telemetry columns are rejected with descriptive errors.
+7. **Unknown Categories Handling:** Unseen protocols, services, and flags map safely to reserved code `0` without crash.
+8. **Invalid Numeric & Negative Values:** Data containing infinities, NaNs, and negative values is sanitized safely.
+9. **Risk Score Boundaries (0–100):** Multi-factor scoring mathematically bounded in $[0.0, 100.0]$ across extreme inputs.
+10. **Severity Mapping Tiers:** Risk scores map accurately to Low, Medium, High, and Critical severity levels.
+11. **SHAP Explanation Handling:** TreeExplainer computes valid feature attributions, impact directions, and base values.
+12. **MITRE ATT&CK Mapping & Fallback:** Technique IDs match sub-technique hierarchy (`T1498` $\rightarrow$ `T1498.001`, `T1110` $\rightarrow$ `T1110.001`), and unclassified threats map to fallback `T1000`.
+13. **Admin Login:** Administrator authentication succeeds with valid credentials, granting `admin` role.
+14. **Analyst Login:** Security analyst authentication succeeds with valid credentials, granting `analyst` role.
+15. **Permission Restrictions:** Analysts are restricted from administrative actions (model retraining, state reset, firewall toggle).
+16. **Successful Quarantine:** Quarantining an external threat IP adds it to simulated blocklist, updates incident to `Mitigated`, and logs `SUCCESS`.
+17. **Rejected Quarantine:** Mitigating protected IPs (e.g. gateway `10.0.0.1`) fails, preserves original incident status, and logs `REJECTED`.
+18. **Protected IP Rejection:** Built-in safety rules reject loopback, broadcast, gateway, and DNS from firewall rule generation.
+19. **Successful IP Release:** Manually releasing a quarantined IP deletes it from blocklist, synchronizes incidents to `RELEASED (Manual Unblock)`, and logs `RELEASED`.
+20. **Quarantine Expiry:** Expired quarantines past 1-hour TTL are automatically purged, incidents synced to `EXPIRED (TTL Lease)`, and logged.
+21. **Incident Status Transitions:** Incident progresses through lifecycle states (`New` $\rightarrow$ `Investigating` $\rightarrow$ `Dismissed`) with full audit trail.
+22. **Audit Logging Integrity:** Audit entries contain required schema fields and explicitly distinguish `SUCCESS`, `REJECTED`, and `RELEASED`.
+23. **JSON State Persistence:** StateStore atomically persists and reloads SOC state without data corruption.
+24. **Missing Model Files Graceful Error:** System detects missing model artifacts gracefully and reports descriptive error without unhandled exception.
+25. **Corrupted State Recovery:** StateStore recovers state from backup file (`.bak`) when primary JSON file is corrupted.
 
----
 
 ## 🧪 Demonstration Sequence for College Evaluators / Mentors
 

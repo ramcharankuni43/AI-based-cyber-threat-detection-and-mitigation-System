@@ -2,7 +2,7 @@ import time
 import pandas as pd
 from services.mitigation_service import execute_firewall_rule, remove_firewall_rule, generate_firewall_rule
 
-def purge_expired_quarantines(blocklist: dict, audit_logs: list, enforcement_backend: str = "Simulated Mitigation") -> list[str]:
+def purge_expired_quarantines(blocklist: dict, audit_logs: list, incidents: list = None, enforcement_backend: str = "Simulated Mitigation") -> list[str]:
     """
     Evaluates 1-hour TTL leases for quarantined IPs and safely releases expired entries.
     Returns list of released IPs.
@@ -21,16 +21,63 @@ def purge_expired_quarantines(blocklist: dict, audit_logs: list, enforcement_bac
     for ip in expired_ips:
         remove_firewall_rule(ip, simulate_safe=True)
         del blocklist[ip]
+        if incidents:
+            for inc in incidents:
+                if inc.get("src_ip") == ip and inc.get("mitigation_status") == "SIMULATED QUARANTINED":
+                    inc["mitigation_status"] = "EXPIRED (TTL Lease)"
+                    inc["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
         audit_logs.insert(0, {
             "timestamp": time.strftime("%H:%M:%S"),
             "action": "QUARANTINE_EXPIRED",
             "target": ip,
             "actor": "TTL Decay Daemon (Simulated Mitigation)",
             "reason": "1-Hour quarantine lease expired. IP released from simulated blocklist.",
-            "result": "SUCCESS"
+            "result": "RELEASED"
         })
 
     return expired_ips
+
+def release_quarantined_ip(state: dict, ip: str, actor: str = "SOC Security Analyst", reason: str = "") -> dict:
+    """
+    Manually releases an IP address from the simulated quarantine blocklist.
+    1. Removes IP from blocklist.
+    2. Updates mitigation_status on all related incidents to 'RELEASED (Manual Unblock)'.
+    3. Records an audit log with result: 'RELEASED'.
+    """
+    blocklist = state.setdefault("blocklist", {})
+    audit_logs = state.setdefault("audit_logs", [])
+    incidents = state.setdefault("incidents", [])
+
+    if not ip or ip not in blocklist:
+        return {"success": False, "message": f"IP {ip} is not currently quarantined in the blocklist."}
+
+    del blocklist[ip]
+    remove_firewall_rule(ip, simulate_safe=True)
+
+    # Synchronize incident state
+    updated_incidents = 0
+    for inc in incidents:
+        if inc.get("src_ip") == ip and inc.get("mitigation_status") == "SIMULATED QUARANTINED":
+            inc["mitigation_status"] = "RELEASED (Manual Unblock)"
+            inc["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            updated_incidents += 1
+
+    audit_logs.insert(0, {
+        "timestamp": time.strftime("%H:%M:%S"),
+        "action": "MANUAL_RELEASE",
+        "target": ip,
+        "actor": actor,
+        "reason": reason or "Security analyst manually released IP from simulated quarantine blocklist.",
+        "result": "RELEASED"
+    })
+
+    return {
+        "success": True,
+        "released_ip": ip,
+        "incidents_updated": updated_incidents,
+        "message": f"IP {ip} released from simulated quarantine blocklist."
+    }
 
 def process_stream_batch(
     batch_df: pd.DataFrame,
@@ -231,27 +278,17 @@ def update_incident_status(state: dict, incident_id: str, new_status: str, actor
         return {"success": False, "message": f"Incident {incident_id} not found."}
 
     old_status = target_inc.get("status", "New")
-    target_inc["status"] = new_status
-    if analyst_notes:
-        target_inc["analyst_notes"] = analyst_notes
-    target_inc["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
-
     src_ip = target_inc.get("src_ip")
     blocklist = state.setdefault("blocklist", {})
     audit_logs = state.setdefault("audit_logs", [])
     dismissed_ips = state.setdefault("dismissed_ips", set())
 
-    action_type = f"INCIDENT_{new_status.upper()}"
-    reason = f"Analyst transitioned incident {incident_id} lifecycle status from '{old_status}' to '{new_status}'."
-    if analyst_notes:
-        reason += f" Notes: {analyst_notes}"
-
-    # Synchronize simulated mitigation state
+    # Synchronize simulated mitigation state before committing status change
     if new_status == "Mitigated":
         rule_spec = generate_firewall_rule(src_ip)
         exec_res = execute_firewall_rule(src_ip, simulate_safe=True)
         if not exec_res.get("success", False):
-            err_msg = exec_res.get("error", "Mitigation rejected by safety engine.")
+            err_msg = exec_res.get("error") or exec_res.get("stderr") or "Mitigation rejected by safety engine."
             audit_logs.insert(0, {
                 "timestamp": time.strftime("%H:%M:%S"),
                 "action": "INCIDENT_MITIGATION_REJECTED",
@@ -260,7 +297,9 @@ def update_incident_status(state: dict, incident_id: str, new_status: str, actor
                 "reason": f"Failed to mitigate incident {incident_id}: {err_msg}",
                 "result": "REJECTED"
             })
+            # Preserve original status on failure: target_inc['status'] remains old_status
             return {"success": False, "error": err_msg, "message": f"Mitigation rejected for {src_ip}: {err_msg}"}
+
         blocklist[src_ip] = {
             "timestamp": time.strftime("%H:%M:%S"),
             "quarantined_at": time.time(),
@@ -279,6 +318,20 @@ def update_incident_status(state: dict, incident_id: str, new_status: str, actor
         dismissed_ips.add(src_ip)
         remove_firewall_rule(src_ip, simulate_safe=True)
         target_inc["mitigation_status"] = "ANALYST DISMISSED"
+    elif new_status == "Investigating":
+        if target_inc.get("mitigation_status") != "SIMULATED QUARANTINED":
+            target_inc["mitigation_status"] = "UNDER INVESTIGATION"
+
+    # Commit status update only after successful transition validation
+    target_inc["status"] = new_status
+    if analyst_notes:
+        target_inc["analyst_notes"] = analyst_notes
+    target_inc["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    action_type = f"INCIDENT_{new_status.upper()}"
+    reason = f"Analyst transitioned incident {incident_id} lifecycle status from '{old_status}' to '{new_status}'."
+    if analyst_notes:
+        reason += f" Notes: {analyst_notes}"
 
     audit_logs.insert(0, {
         "timestamp": time.strftime("%H:%M:%S"),

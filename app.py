@@ -48,7 +48,8 @@ from services import (
     TRUSTED_WHITELIST_IPS,
     process_stream_batch as alert_process_stream_batch,
     purge_expired_quarantines,
-    update_incident_status
+    update_incident_status,
+    release_quarantined_ip
 )
 
 # Page configuration
@@ -238,6 +239,7 @@ def check_and_purge_expired_quarantines():
     expired = purge_expired_quarantines(
         st.session_state.blocklist,
         st.session_state.audit_logs,
+        st.session_state.get("incidents", []),
         "Simulated Mitigation (Safe Demo Mode)"
     )
     if expired:
@@ -672,6 +674,19 @@ elif nav_page == "AI Detection":
             })
         st.table(pd.DataFrame(comp_rows))
 
+        # Training Split Performance
+        train_metrics = report.get("train_metrics", {})
+        if train_metrics:
+            st.markdown("##### Training Split Performance (Fit Reference)")
+            train_rows = []
+            for mkey, tdata in train_metrics.items():
+                train_rows.append({
+                    "Model Architecture": mkey.replace("_", " ").title(),
+                    "Training Accuracy": f"{tdata.get('accuracy', 0):.4f}",
+                    "Training F1-Score": f"{tdata.get('f1_score', 0):.4f}"
+                })
+            st.dataframe(pd.DataFrame(train_rows), width="stretch")
+
         # Stratified Validation Split Performance
         val_metrics = report.get("validation_metrics", {})
         if val_metrics:
@@ -814,19 +829,28 @@ elif nav_page == "Incident Investigation":
                 if st.button("🔍 Mark as Investigating", key=f"btn_inv_{target_inc.get('incident_id')}", width="stretch"):
                     res = update_incident_status(st.session_state, target_inc["incident_id"], "Investigating", actor=cur_user.get("display_name", "Analyst"), analyst_notes=analyst_notes)
                     save_persisted_state()
-                    st.success(res["message"])
+                    if res.get("success"):
+                        st.success(res.get("message"))
+                    else:
+                        st.error(res.get("message"))
                     st.rerun()
             with act2:
                 if st.button("🛡️ Simulate Quarantine (Mitigate)", key=f"btn_mit_{target_inc.get('incident_id')}", width="stretch"):
                     res = update_incident_status(st.session_state, target_inc["incident_id"], "Mitigated", actor=cur_user.get("display_name", "Analyst"), analyst_notes=analyst_notes)
                     save_persisted_state()
-                    st.success(f"Quarantined IP {target_inc.get('src_ip')} in simulated blocklist and marked incident as Mitigated.")
+                    if res.get("success"):
+                        st.success(f"Quarantined IP {target_inc.get('src_ip')} in simulated blocklist and marked incident as Mitigated.")
+                    else:
+                        st.error(f"Mitigation Failed: {res.get('message', 'Rejected by safety policy')}")
                     st.rerun()
             with act3:
                 if st.button("❌ Dismiss Incident", key=f"btn_dis_{target_inc.get('incident_id')}", width="stretch"):
                     res = update_incident_status(st.session_state, target_inc["incident_id"], "Dismissed", actor=cur_user.get("display_name", "Analyst"), analyst_notes=analyst_notes)
                     save_persisted_state()
-                    st.info(f"Incident {target_inc.get('incident_id')} dismissed and IP released from blocklist.")
+                    if res.get("success"):
+                        st.info(f"Incident {target_inc.get('incident_id')} dismissed and IP released from blocklist.")
+                    else:
+                        st.error(res.get("message"))
                     st.rerun()
 
             st.markdown("---")
@@ -867,8 +891,9 @@ elif nav_page == "Incident Investigation":
 
             with st.expander("📐 Risk Scoring Formulation & Mathematical Weights", expanded=False):
                 st.markdown("""
-                - **Internal Composite Risk Scale:** 0.0 to 100.0 (Standardized CVSS v3.1 Impact Alignment)
+                - **Internal Composite Risk Scale:** 0.0 to 100.0 (Custom Calibrated Impact Heuristic)
                 - **Formula:** `Composite Risk (0-100) = (Base Impact * 40) + (Model Confidence * 30) + (Anomaly Score * 15) + (Telemetry Modifier * 15)`
+                - **Note:** This is an explainable weighted heuristic developed specifically for this IDS platform (not the official FIRST CVSS v3.1 specification).
                 - **Weight Distribution:**
                   - Base Severity Impact: 40% (DoS: 0.85, Brute Force: 0.75, Port Scan: 0.55, Normal: 0.05)
                   - Classifier Posterior Probability: 30%
@@ -937,18 +962,16 @@ elif nav_page == "Simulated Mitigation":
             u_col1, u_col2 = st.columns([1, 1])
             with u_col1:
                 if st.button(f"🔓 Release IP {unblock_ip}", width="stretch", key="btn_manual_release"):
-                    remove_firewall_rule(unblock_ip, simulate_safe=True)
-                    del st.session_state.blocklist[unblock_ip]
-                    st.session_state.audit_logs.insert(0, {
-                        "timestamp": time.strftime("%H:%M:%S"),
-                        "action": "MANUAL_UNBLOCK",
-                        "target": unblock_ip,
-                        "actor": f"SOC Security Analyst ({cur_user.get('display_name', 'Analyst')})",
-                        "reason": "Security analyst manually released IP from simulated quarantine blocklist.",
-                        "result": "SUCCESS"
-                    })
+                    res = release_quarantined_ip(
+                        st.session_state,
+                        unblock_ip,
+                        actor=f"SOC Security Analyst ({cur_user.get('display_name', 'Analyst')})"
+                    )
                     save_persisted_state()
-                    st.success(f"IP {unblock_ip} released from simulated quarantine blocklist.")
+                    if res.get("success"):
+                        st.success(res.get("message"))
+                    else:
+                        st.error(res.get("message"))
                     st.rerun()
 
             with u_col2:

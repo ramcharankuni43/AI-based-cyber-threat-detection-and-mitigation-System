@@ -27,6 +27,16 @@
   },
   "target_f1_score": 0.9,
   "latency_threshold_ms": 100.0,
+  "train_metrics": {
+    "random_forest": {
+      "accuracy": 0.998,
+      "f1_score": 0.998
+    },
+    "xgboost": {
+      "accuracy": 1.0,
+      "f1_score": 1.0
+    }
+  },
   "validation_metrics": {
     "random_forest": {
       "accuracy": 0.9933,
@@ -54,8 +64,8 @@
       "false_positive_rate": 0.0048,
       "roc_auc": 0.9996,
       "brier_score": 0.0206,
-      "prediction_latency_ms": 0.043,
-      "train_time_sec": 1.13,
+      "prediction_latency_ms": 0.046,
+      "train_time_sec": 1.07,
       "confusion_matrix": [
         [
           75,
@@ -196,8 +206,8 @@
       "false_positive_rate": 0.0012,
       "roc_auc": 1.0,
       "brier_score": 0.0019,
-      "prediction_latency_ms": 0.006,
-      "train_time_sec": 1.83,
+      "prediction_latency_ms": 0.007,
+      "train_time_sec": 1.59,
       "confusion_matrix": [
         [
           75,
@@ -334,8 +344,8 @@
       "f1_score": 0.8143,
       "false_positive_rate": 0.0679,
       "roc_auc": 0.8865,
-      "prediction_latency_ms": 0.019,
-      "train_time_sec": 0.4,
+      "prediction_latency_ms": 0.018,
+      "train_time_sec": 0.29,
       "meets_latency_target": true
     }
   },
@@ -381,5 +391,5 @@
       "importance": 0.0355
     }
   ],
-  "generated_at": "2026-11-03 19:35:34"
+  "generated_at": "2026-11-04 16:38:44"
 }

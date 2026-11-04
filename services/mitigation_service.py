@@ -169,13 +169,15 @@ def execute_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
     """
     rule_spec = generate_firewall_rule(ip_str)
     if not rule_spec.get("valid", False):
+        err_text = rule_spec.get("error", "Invalid IP address")
         return {
             "success": False,
+            "error": err_text,
             "requires_elevation": False,
             "returncode": -1,
             "stdout": "",
-            "stderr": rule_spec.get("error", "Invalid IP address"),
-            "status_message": f"Validation Error: {rule_spec.get('error')}",
+            "stderr": err_text,
+            "status_message": f"Validation Error: {err_text}",
             "command": "",
             "rule_name": "",
             "mode": "Simulated Mitigation (Safe Demo Mode)",
@@ -207,12 +209,14 @@ def remove_firewall_rule(ip_str: str, simulate_safe: bool = True) -> dict:
     """
     rule_spec = generate_firewall_rule(ip_str)
     if not rule_spec.get("valid", False):
+        err_text = rule_spec.get("error", "Invalid IP address")
         return {
             "success": False,
+            "error": err_text,
             "returncode": -1,
             "stdout": "",
-            "stderr": rule_spec.get("error", "Invalid IP address"),
-            "status_message": f"Validation Error: {rule_spec.get('error')}",
+            "stderr": err_text,
+            "status_message": f"Validation Error: {err_text}",
             "command": "",
             "rule_name": "",
             "mode": "Simulated Mitigation (Safe Demo Mode)",

@@ -244,6 +244,12 @@ def train_and_evaluate_all():
     rf_clf.fit(X_train, y_train)
     rf_train_time = round(time.time() - t0, 3)
 
+    # Training Split Evaluation
+    y_pred_rf_train = rf_clf.predict(X_train)
+    rf_train_acc = accuracy_score(y_train, y_pred_rf_train)
+    rf_train_f1 = f1_score(y_train, y_pred_rf_train, average="weighted", zero_division=0)
+    print(f"[*] RF Training Split - Accuracy: {rf_train_acc:.4f}, F1: {rf_train_f1:.4f}")
+
     # Validation Split Evaluation (Hyperparameter & Generalization Check)
     y_pred_rf_val = rf_clf.predict(X_val)
     rf_val_acc = accuracy_score(y_val, y_pred_rf_val)
@@ -302,6 +308,12 @@ def train_and_evaluate_all():
     t0 = time.time()
     xgb_clf.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
     xgb_train_time = round(time.time() - t0, 3)
+
+    # Training Split Evaluation
+    y_pred_xgb_train = xgb_clf.predict(X_train)
+    xgb_train_acc = accuracy_score(y_train, y_pred_xgb_train)
+    xgb_train_f1 = f1_score(y_train, y_pred_xgb_train, average="weighted", zero_division=0)
+    print(f"[*] XGBoost Training Split - Accuracy: {xgb_train_acc:.4f}, F1: {xgb_train_f1:.4f}")
 
     # Validation Split Evaluation
     y_pred_xgb_val = xgb_clf.predict(X_val)
@@ -437,6 +449,16 @@ def train_and_evaluate_all():
         },
         "target_f1_score": 0.90,
         "latency_threshold_ms": 100.0,
+        "train_metrics": {
+            "random_forest": {
+                "accuracy": round(float(rf_train_acc), 4),
+                "f1_score": round(float(rf_train_f1), 4)
+            },
+            "xgboost": {
+                "accuracy": round(float(xgb_train_acc), 4),
+                "f1_score": round(float(xgb_train_f1), 4)
+            }
+        },
         "validation_metrics": {
             "random_forest": {
                 "accuracy": round(float(rf_val_acc), 4),

@@ -52,10 +52,10 @@ THREAT_IMPACT_WEIGHTS = {
     "Normal": 0.05         # Benign operational baseline
 }
 
-# Standardized CVSS Severity Level Mapping
+# Calibrated Composite Risk Severity Level Mapping (Custom Impact Heuristic)
 def get_risk_level_from_score(score: float) -> str:
     """
-    Standardized CVSS-aligned risk severity tiers:
+    Standardized operational risk severity tiers:
     - Low:      0.0 - 29.9 (Informational / Baseline Activity)
     - Medium:  30.0 - 59.9 (Suspicious Anomaly / Rate-Limit Candidate)
     - High:    60.0 - 79.9 (Confirmed Attack Signature / Quarantine Candidate)
@@ -195,7 +195,7 @@ def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
             "url": "https://attack.mitre.org/techniques/T1190/",
             "description": "Adversary transmits malformed payloads exploiting memory corruption or remote execution vulnerabilities."
         }
-    else:
+    elif threat_name == "Normal":
         return MITRE_ATTACK_MAPPING.get("Normal", {
             "technique_id": "None",
             "technique_name": "Benign Baseline Activity",
@@ -204,6 +204,16 @@ def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
             "url": "https://attack.mitre.org/",
             "description": "Standard legitimate operational network traffic conforming to expected statistical baselines."
         })
+    else:
+        # Fallback when no reliable MITRE ATT&CK mapping exists
+        return {
+            "technique_id": "T1000",
+            "technique_name": "Unclassified Malicious Network Activity",
+            "tactic": "Unknown",
+            "sub_technique": "N/A",
+            "url": "https://attack.mitre.org/",
+            "description": f"Flow classified as '{threat_name}' without dedicated MITRE mapping. Queued for manual threat intelligence correlation."
+        }
 
 def load_all_artifacts():
     """Fail-safe artifact loader ensuring all model objects, scalers, and label encoders are initialized."""
@@ -836,6 +846,28 @@ def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
         if alias in cleaned_df.columns and standard not in cleaned_df.columns:
             cleaned_df[standard] = cleaned_df[alias]
 
+    # Detect and replace infinite values before numerical coercion
+    num_sub = cleaned_df.select_dtypes(include=[np.number])
+    infinite_count = int(np.isinf(num_sub.values).sum()) if not num_sub.empty else 0
+    cleaned_df = cleaned_df.replace([np.inf, -np.inf], np.nan)
+
+    # Check for malformed IP address formats
+    invalid_ip_count = 0
+    for col in ["src_ip", "dst_ip"]:
+        if col in cleaned_df.columns:
+            for val in cleaned_df[col].dropna():
+                val_str = str(val).strip()
+                if val_str and not is_valid_ip(val_str):
+                    invalid_ip_count += 1
+
+    # Safe row capping for very large CSV uploads (prevents memory exhaustion)
+    MAX_EVAL_ROWS = 5000
+    row_limit_applied = False
+    original_row_count = len(cleaned_df)
+    if original_row_count > MAX_EVAL_ROWS:
+        cleaned_df = cleaned_df.iloc[:MAX_EVAL_ROWS].copy()
+        row_limit_applied = True
+
     present_num = [c for c in NUMERICAL_FEATURES if c in cleaned_df.columns]
     missing_num = [c for c in NUMERICAL_FEATURES if c not in cleaned_df.columns]
     present_cat = [c for c in CATEGORICAL_FEATURES if c in cleaned_df.columns]
@@ -879,14 +911,21 @@ def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
         msg = f"Invalid dataset schema: Uploaded CSV does not contain essential network flow features ({', '.join(essential_cols)})."
     else:
         msg = f"Validated {len(cleaned_df)} flow rows with {len(present_num)}/{len(NUMERICAL_FEATURES)} numerical features and {len(present_cat)}/{len(CATEGORICAL_FEATURES)} categorical features."
+        if row_limit_applied:
+            msg += f" (Capped at {MAX_EVAL_ROWS} rows from {original_row_count} total for interactive responsiveness)."
+        if infinite_count > 0:
+            msg += f" Note: Cleaned {infinite_count} infinite values to NaNs."
+        if invalid_ip_count > 0:
+            msg += f" Warning: {invalid_ip_count} invalid IP formats detected."
         if range_violations:
             msg += f" Note: Clamped {sum(range_violations.values())} negative numerical values to zero."
         if unseen_cats:
-            msg += f" Note: {sum(len(v) for v in unseen_cats.values())} unseen category values detected (will safely map to reserved code 0)."
+            msg += f" Note: {sum(len(v) for v in unseen_cats.values())} unseen category values detected (will safely map to reserved code 0 unknown baseline)."
 
     return {
         "valid": is_valid,
         "total_rows": len(cleaned_df),
+        "original_rows": original_row_count,
         "total_cols": len(cleaned_df.columns),
         "present_numerical": present_num,
         "missing_numerical": missing_num,
@@ -894,8 +933,11 @@ def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
         "missing_categorical": missing_cat,
         "nan_count": total_nan_before,
         "coerced_nan_count": coerced_count,
+        "infinite_count": infinite_count,
+        "invalid_ip_count": invalid_ip_count,
         "range_violations": range_violations,
         "unseen_categories": unseen_cats,
+        "row_limit_applied": row_limit_applied,
         "summary_message": msg,
         "cleaned_df": cleaned_df
     }
@@ -917,7 +959,21 @@ def predict_batch_csv(df: pd.DataFrame, model_name: str = None) -> dict:
     
     for idx, row in target_df.iterrows():
         flow_dict = row.to_dict()
-        res = analyze_event(flow_dict, model_override=selected_model_name)
+        try:
+            res = analyze_event(flow_dict, model_override=selected_model_name)
+        except Exception:
+            res = {
+                "predicted_threat": "Unclassified",
+                "confidence": 0.0,
+                "anomaly_score": 0.0,
+                "risk_score": 35.0,
+                "risk_level": "Medium",
+                "recommended_action": "Flagged for manual analyst inspection (malformed telemetry record)",
+                "action_code": "FLAGGED",
+                "mitre_attack": {"technique_id": "T1000", "technique_name": "Unclassified Activity"},
+                "is_anomaly": False,
+                "unseen_categories": []
+            }
         
         threat = res["predicted_threat"]
         class_counts[threat] = class_counts.get(threat, 0) + 1

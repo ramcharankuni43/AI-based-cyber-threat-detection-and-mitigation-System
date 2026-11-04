@@ -16,7 +16,7 @@ from .mitigation_service import (
     TRUSTED_WHITELIST_IPS,
     PROTECTED_CIDR_SUBNETS
 )
-from .alert_service import process_stream_batch, purge_expired_quarantines, update_incident_status
+from .alert_service import process_stream_batch, purge_expired_quarantines, update_incident_status, release_quarantined_ip
 
 __all__ = [
     "authenticate_user",
@@ -35,5 +35,6 @@ __all__ = [
     "PROTECTED_CIDR_SUBNETS",
     "process_stream_batch",
     "purge_expired_quarantines",
-    "update_incident_status"
+    "update_incident_status",
+    "release_quarantined_ip"
 ]
