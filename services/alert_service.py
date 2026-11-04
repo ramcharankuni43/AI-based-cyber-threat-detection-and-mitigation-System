@@ -93,30 +93,41 @@ def process_stream_batch(
             elif mitigation_mode == "Autonomous Auto-Block":
                 rule_spec = res.get("firewall_rule_specs", {})
                 exec_res = execute_firewall_rule(src_ip, simulate_safe=True)
-                block_status = "BLOCKED (Simulated Mitigation)"
-                mode_desc = "Simulated Mitigation (Safe Demo Mode)"
+                if exec_res.get("success", False):
+                    block_status = "BLOCKED (Simulated Mitigation)"
+                    mode_desc = "Simulated Mitigation (Safe Demo Mode)"
 
-                blocklist[src_ip] = {
-                    "timestamp": time.strftime("%H:%M:%S"),
-                    "quarantined_at": time.time(),
-                    "ttl_seconds": 3600,
-                    "threat": predicted_threat,
-                    "risk_score": res["risk_score"],
-                    "risk_level": risk_lvl,
-                    "status": block_status,
-                    "mode": mode_desc,
-                    "rule": rule_spec.get("netsh_command", "")
-                }
-                firewall_status = "SIMULATED QUARANTINED"
+                    blocklist[src_ip] = {
+                        "timestamp": time.strftime("%H:%M:%S"),
+                        "quarantined_at": time.time(),
+                        "ttl_seconds": 3600,
+                        "threat": predicted_threat,
+                        "risk_score": res["risk_score"],
+                        "risk_level": risk_lvl,
+                        "status": block_status,
+                        "mode": mode_desc,
+                        "rule": rule_spec.get("netsh_command", "")
+                    }
+                    firewall_status = "SIMULATED QUARANTINED"
 
-                if not any(log.get("target") == src_ip and log.get("action") == "IP_QUARANTINED" for log in audit_logs[:5]):
+                    if not any(log.get("target") == src_ip and log.get("action") == "IP_QUARANTINED" for log in audit_logs[:5]):
+                        audit_logs.insert(0, {
+                            "timestamp": time.strftime("%H:%M:%S"),
+                            "action": "SIMULATED_IP_QUARANTINED",
+                            "target": src_ip,
+                            "actor": "Autonomous Policy (Simulated)",
+                            "reason": f"{risk_lvl} threat {predicted_threat} detected (Score: {res['risk_score']}). Added to simulated blocklist.",
+                            "result": "SUCCESS"
+                        })
+                else:
+                    firewall_status = f"QUARANTINE REJECTED ({exec_res.get('error', 'Safety rule')})"
                     audit_logs.insert(0, {
                         "timestamp": time.strftime("%H:%M:%S"),
-                        "action": "SIMULATED_IP_QUARANTINED",
+                        "action": "AUTO_MITIGATION_REJECTED",
                         "target": src_ip,
                         "actor": "Autonomous Policy (Simulated)",
-                        "reason": f"{risk_lvl} threat {predicted_threat} detected (Score: {res['risk_score']}). Added to simulated blocklist.",
-                        "result": "SUCCESS"
+                        "reason": f"Auto-mitigation blocked by safety engine: {exec_res.get('error', 'Safety rule')}",
+                        "result": "REJECTED"
                     })
             else: # Human-in-the-Loop Approval Queue
                 if src_ip not in blocklist or not blocklist[src_ip]["status"].startswith("BLOCKED"):
@@ -162,7 +173,17 @@ def process_stream_batch(
         # Incident Lifecycle Tracking (New -> Investigating -> Mitigated / Dismissed)
         # Create an incident for any abnormal or attack traffic
         if predicted_threat != "Normal" or risk_lvl in ["High", "Critical"]:
-            inc_id = f"INC-{len(incidents) + 1:04d}"
+            # Ensure monotonic unique ID: max(existing_ids) + 1
+            existing_ids = []
+            for inc in incidents:
+                inc_id_str = str(inc.get("incident_id", ""))
+                if inc_id_str.startswith("INC-"):
+                    try:
+                        existing_ids.append(int(inc_id_str.split("-")[1]))
+                    except (ValueError, IndexError):
+                        pass
+            next_id = (max(existing_ids) + 1) if existing_ids else 1
+            inc_id = f"INC-{next_id:04d}"
             lifecycle_status = "Mitigated" if "QUARANTINED" in firewall_status else ("Dismissed" if "DISMISSED" in firewall_status else "New")
             incident_entry = {
                 "incident_id": inc_id,
@@ -228,7 +249,18 @@ def update_incident_status(state: dict, incident_id: str, new_status: str, actor
     # Synchronize simulated mitigation state
     if new_status == "Mitigated":
         rule_spec = generate_firewall_rule(src_ip)
-        execute_firewall_rule(src_ip, simulate_safe=True)
+        exec_res = execute_firewall_rule(src_ip, simulate_safe=True)
+        if not exec_res.get("success", False):
+            err_msg = exec_res.get("error", "Mitigation rejected by safety engine.")
+            audit_logs.insert(0, {
+                "timestamp": time.strftime("%H:%M:%S"),
+                "action": "INCIDENT_MITIGATION_REJECTED",
+                "target": f"{incident_id} ({src_ip})",
+                "actor": actor,
+                "reason": f"Failed to mitigate incident {incident_id}: {err_msg}",
+                "result": "REJECTED"
+            })
+            return {"success": False, "error": err_msg, "message": f"Mitigation rejected for {src_ip}: {err_msg}"}
         blocklist[src_ip] = {
             "timestamp": time.strftime("%H:%M:%S"),
             "quarantined_at": time.time(),

@@ -1,4 +1,10 @@
-from .auth_service import authenticate_user, has_permission
+from .auth_service import (
+    authenticate_user,
+    has_permission,
+    hash_password,
+    verify_password,
+    is_demo_quick_login_enabled
+)
 from .mitigation_service import (
     validate_ip_address,
     is_safe_to_block_ip,
@@ -15,6 +21,9 @@ from .alert_service import process_stream_batch, purge_expired_quarantines, upda
 __all__ = [
     "authenticate_user",
     "has_permission",
+    "hash_password",
+    "verify_password",
+    "is_demo_quick_login_enabled",
     "validate_ip_address",
     "is_safe_to_block_ip",
     "check_ip_whitelist",

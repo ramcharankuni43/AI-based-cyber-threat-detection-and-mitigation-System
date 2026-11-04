@@ -77,14 +77,14 @@ MITRE_ATTACK_MAPPING = {
         "technique_name": "Network Denial of Service",
         "tactic": "Impact",
         "sub_technique": "T1498.001 - Direct Network Flood",
-        "url": "https://attack.mitre.org/techniques/T1498/",
+        "url": "https://attack.mitre.org/techniques/T1498/001/",
         "description": "Adversary conducts volumetric network floods to degrade service throughput and availability."
     },
     "Port Scan": {
         "technique_id": "T1046",
         "technique_name": "Network Service Discovery",
         "tactic": "Discovery",
-        "sub_technique": "T1046 - Port Scanning / Active Sweep",
+        "sub_technique": "T1046 - Network Service Discovery",
         "url": "https://attack.mitre.org/techniques/T1046/",
         "description": "Adversary probes ranges of IP addresses and ports to enumerate live hosts and vulnerable listeners."
     },
@@ -93,22 +93,22 @@ MITRE_ATTACK_MAPPING = {
         "technique_name": "Brute Force",
         "tactic": "Credential Access",
         "sub_technique": "T1110.001 - Password Guessing",
-        "url": "https://attack.mitre.org/techniques/T1110/",
+        "url": "https://attack.mitre.org/techniques/T1110/001/",
         "description": "Adversary systematically submits repetitive authentication credentials to gain unauthorized access."
     },
     "Botnet": {
         "technique_id": "T1071",
         "technique_name": "Application Layer Protocol",
         "tactic": "Command and Control",
-        "sub_technique": "T1071.001 - Web Protocols / C2 Beaconing",
-        "url": "https://attack.mitre.org/techniques/T1071/",
+        "sub_technique": "T1071.001 - Web Protocols",
+        "url": "https://attack.mitre.org/techniques/T1071/001/",
         "description": "Compromised endpoint communicates with external C2 node using structured beacon intervals."
     },
     "Exploits": {
         "technique_id": "T1190",
         "technique_name": "Exploit Public-Facing Application",
         "tactic": "Initial Access",
-        "sub_technique": "T1190 - Remote Service Exploitation",
+        "sub_technique": "T1190 - Exploit Public-Facing Application",
         "url": "https://attack.mitre.org/techniques/T1190/",
         "description": "Adversary transmits malformed payloads exploiting memory or parsing vulnerabilities in software."
     },
@@ -148,14 +148,14 @@ def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
             sub_id = "T1498.001"
             sub_name = "Direct Network Flood (UDP Amplification/Flood)"
         else:
-            sub_id = "T1499.001"
-            sub_name = "Endpoint DoS (HTTP Service Exhaustion)"
+            sub_id = "T1498.001"
+            sub_name = "Direct Network Flood (TCP SYN/ACK Flood)"
         return {
             "technique_id": "T1498",
             "technique_name": "Network Denial of Service",
             "tactic": "Impact",
             "sub_technique": f"{sub_id} - {sub_name}",
-            "url": "https://attack.mitre.org/techniques/T1498/",
+            "url": "https://attack.mitre.org/techniques/T1498/001/",
             "description": "Adversary conducts volumetric network floods to degrade service throughput and availability."
         }
     elif threat_name == "Port Scan":
@@ -163,7 +163,7 @@ def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
             "technique_id": "T1046",
             "technique_name": "Network Service Discovery",
             "tactic": "Discovery",
-            "sub_technique": "T1046 - Port Scanning / Active Sweep",
+            "sub_technique": "T1046 - Network Service Discovery",
             "url": "https://attack.mitre.org/techniques/T1046/",
             "description": "Adversary probes ranges of IP addresses and ports to enumerate live hosts and vulnerable listeners."
         }
@@ -174,7 +174,7 @@ def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
             "technique_name": "Brute Force",
             "tactic": "Credential Access",
             "sub_technique": f"T1110.001 - Password Guessing ({service_target})",
-            "url": "https://attack.mitre.org/techniques/T1110/",
+            "url": "https://attack.mitre.org/techniques/T1110/001/",
             "description": f"Adversary submits repetitive authentication attempts targeting {service_target} to compromise credentials."
         }
     elif threat_name == "Botnet":
@@ -182,8 +182,8 @@ def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
             "technique_id": "T1071",
             "technique_name": "Application Layer Protocol",
             "tactic": "Command and Control",
-            "sub_technique": "T1071.001 - Web Protocols / C2 Beaconing",
-            "url": "https://attack.mitre.org/techniques/T1071/",
+            "sub_technique": "T1071.001 - Web Protocols",
+            "url": "https://attack.mitre.org/techniques/T1071/001/",
             "description": "Compromised host communicates with external C2 node using structured beacon intervals."
         }
     elif threat_name == "Exploits":
@@ -191,7 +191,7 @@ def get_mitre_mapping(threat_name: str, flow_data: dict = None) -> dict:
             "technique_id": "T1190",
             "technique_name": "Exploit Public-Facing Application",
             "tactic": "Initial Access",
-            "sub_technique": "T1190 - Remote Service Exploitation",
+            "sub_technique": "T1190 - Exploit Public-Facing Application",
             "url": "https://attack.mitre.org/techniques/T1190/",
             "description": "Adversary transmits malformed payloads exploiting memory corruption or remote execution vulnerabilities."
         }
@@ -352,7 +352,10 @@ def prepare_feature_row(data: dict, return_unseen: bool = False):
             else:
                 val = baseline_defaults.get(col, 0.0)
         try:
-            row[col] = float(val)
+            val_flt = float(val)
+            if col in ["dur", "spkts", "dpkts", "sbytes", "dbytes", "rate", "sloss", "dloss", "sinpkt", "dinpkt"]:
+                val_flt = max(0.0, val_flt)
+            row[col] = val_flt
         except (ValueError, TypeError):
             row[col] = baseline_defaults.get(col, 0.0)
         
@@ -495,6 +498,13 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
     selected_model_name = model_override or _active_model_name
     model = _xgb_model if selected_model_name == "xgboost" else _rf_model
     
+    # Check data quality for missing flow telemetry
+    essential_flow_keys = ["dur", "spkts", "sbytes", "rate", "bytes_sent", "duration", "packets_sent", "event_frequency", "dbytes", "dpkts"]
+    has_essential = any(k in flow_data and flow_data[k] is not None and not pd.isna(flow_data[k]) for k in essential_flow_keys)
+    data_quality_warning = None
+    if not has_essential:
+        data_quality_warning = "Missing essential network flow telemetry (dur, spkts, sbytes, rate). Evaluated with baseline baseline defaults."
+
     # 1. Prepare and scale input with explicit unseen-category tracking (Finding A)
     X_raw, unseen_cats = prepare_feature_row(flow_data, return_unseen=True)
     X_scaled = pd.DataFrame(_scaler.transform(X_raw), columns=_feature_names)
@@ -520,6 +530,8 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
         predicted_threat = "Normal"
         
     confidence = float(probabilities[pred_class_idx]) if pred_class_idx < len(probabilities) else 0.5
+    if data_quality_warning:
+        confidence = min(confidence, 0.45)
     
     all_probs = {
         cls_name: round(float(prob), 4)
@@ -528,9 +540,13 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
     
     # 4. SHAP Explanation (FR-12, NFR-04)
     shap_info = compute_shap_explanation(X_scaled, pred_class_idx, predicted_threat=predicted_threat, model_name=selected_model_name)
+    if data_quality_warning:
+        shap_info["data_quality_warning"] = data_quality_warning
     
     # Build human-readable rationale
     rationale_points = []
+    if data_quality_warning:
+        rationale_points.append(f"Data Quality Warning: {data_quality_warning}")
     if shap_info.get("top_positive_factors"):
         for factor in shap_info["top_positive_factors"][:3]:
             feat = factor["feature"]
@@ -657,6 +673,7 @@ def analyze_event(flow_data: dict, model_override: str = None) -> dict:
         "whitelist_reason": whitelist_reason,
         "mitre_attack": mitre_info,
         "firewall_rule_specs": firewall_rule_specs,
+        "data_quality_warning": data_quality_warning,
         "unseen_categories": unseen_cats,
         "explanation": explanation_text,
         "shap_explanation": shap_info,
@@ -826,6 +843,7 @@ def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
 
     total_nan_before = int(cleaned_df.isna().sum().sum())
     coerced_count = 0
+    range_violations = {}
 
     # Validate numerical columns
     for col in present_num:
@@ -833,6 +851,11 @@ def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
         cleaned_df[col] = pd.to_numeric(cleaned_df[col], errors="coerce")
         new_nans = cleaned_df[col].isna().sum() - original_nans
         coerced_count += max(0, int(new_nans))
+        if col in ["dur", "spkts", "dpkts", "sbytes", "dbytes", "rate", "sloss", "dloss"]:
+            neg_count = int((cleaned_df[col] < 0).sum())
+            if neg_count > 0:
+                range_violations[col] = neg_count
+                cleaned_df[col] = cleaned_df[col].clip(lower=0.0)
 
     # Validate categorical columns against trained vocabulary
     unseen_cats = {}
@@ -848,11 +871,18 @@ def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
             if col_unseen:
                 unseen_cats[col] = sorted(list(col_unseen))
 
-    is_valid = len(present_num) >= 2 or len(present_cat) >= 1 or "src_ip" in cleaned_df.columns
+    essential_cols = ["dur", "spkts", "sbytes", "rate"]
+    has_essential = any(col in cleaned_df.columns for col in essential_cols)
+    is_valid = has_essential and (len(present_num) >= 2 or len(present_cat) >= 1)
 
-    msg = f"Validated {len(cleaned_df)} flow rows with {len(present_num)}/{len(NUMERICAL_FEATURES)} numerical features and {len(present_cat)}/{len(CATEGORICAL_FEATURES)} categorical features."
-    if unseen_cats:
-        msg += f" Note: {sum(len(v) for v in unseen_cats.values())} unseen category values detected (will safely map to reserved code 0)."
+    if not is_valid:
+        msg = f"Invalid dataset schema: Uploaded CSV does not contain essential network flow features ({', '.join(essential_cols)})."
+    else:
+        msg = f"Validated {len(cleaned_df)} flow rows with {len(present_num)}/{len(NUMERICAL_FEATURES)} numerical features and {len(present_cat)}/{len(CATEGORICAL_FEATURES)} categorical features."
+        if range_violations:
+            msg += f" Note: Clamped {sum(range_violations.values())} negative numerical values to zero."
+        if unseen_cats:
+            msg += f" Note: {sum(len(v) for v in unseen_cats.values())} unseen category values detected (will safely map to reserved code 0)."
 
     return {
         "valid": is_valid,
@@ -864,6 +894,7 @@ def validate_and_prepare_csv(df: pd.DataFrame) -> dict:
         "missing_categorical": missing_cat,
         "nan_count": total_nan_before,
         "coerced_nan_count": coerced_count,
+        "range_violations": range_violations,
         "unseen_categories": unseen_cats,
         "summary_message": msg,
         "cleaned_df": cleaned_df

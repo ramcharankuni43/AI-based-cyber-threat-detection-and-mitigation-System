@@ -150,6 +150,7 @@ def generate_firewall_rule(ip_str: str, direction: str = "inbound") -> dict:
         "error": None,
         "rule_name": rule_name,
         "ip": valid_ip,
+        "target_ip": valid_ip,
         "direction": dir_flag,
         "netsh_command": netsh_cmd,
         "netsh_args": netsh_args,

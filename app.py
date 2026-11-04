@@ -40,6 +40,7 @@ from storage import StateStore
 from services import (
     authenticate_user,
     has_permission,
+    is_demo_quick_login_enabled,
     execute_firewall_rule,
     remove_firewall_rule,
     generate_firewall_rule,
@@ -296,16 +297,19 @@ if st.session_state.authenticated_user is None:
                 else:
                     st.error("Invalid credentials. Please verify username and password.")
 
-        st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.8rem; margin: 12px 0;'>— OR QUICK EVALUATION ACCESS —</p>", unsafe_allow_html=True)
-        demo_col1, demo_col2 = st.columns(2)
-        with demo_col1:
-            if st.button("🔑 Login as Admin", width="stretch", help="Full permissions: host firewall, retraining, state management"):
-                st.session_state.authenticated_user = authenticate_user("admin", "admin123")
-                st.rerun()
-        with demo_col2:
-            if st.button("👤 Login as Analyst", width="stretch", help="Triage permissions: threat investigation, quarantine approval"):
-                st.session_state.authenticated_user = authenticate_user("analyst", "analyst123")
-                st.rerun()
+        if is_demo_quick_login_enabled():
+            st.markdown("<p style='text-align: center; color: #64748b; font-size: 0.8rem; margin: 12px 0;'>— OR QUICK EVALUATION ACCESS (LOCAL DEMO) —</p>", unsafe_allow_html=True)
+            demo_col1, demo_col2 = st.columns(2)
+            with demo_col1:
+                if st.button("🔑 Login as Admin", width="stretch", help="Full permissions: retraining, state management"):
+                    from services.auth_service import ADMIN_USER, ADMIN_PASS
+                    st.session_state.authenticated_user = authenticate_user(ADMIN_USER, ADMIN_PASS)
+                    st.rerun()
+            with demo_col2:
+                if st.button("👤 Login as Analyst", width="stretch", help="Triage permissions: threat investigation, quarantine approval"):
+                    from services.auth_service import ANALYST_USER, ANALYST_PASS
+                    st.session_state.authenticated_user = authenticate_user(ANALYST_USER, ANALYST_PASS)
+                    st.rerun()
 
     st.stop()
 
