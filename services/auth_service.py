@@ -2,15 +2,7 @@ import os
 import time
 import hmac
 import hashlib
-import importlib
-
-# Dynamic module resolver to avoid IDE language server / linter unresolved import diagnostics
-_bcrypt_mod = None
-try:
-    _bcrypt_mod = importlib.import_module("bcrypt")
-    _BCRYPT_AVAILABLE = True
-except Exception:
-    _BCRYPT_AVAILABLE = False
+import bcrypt
 
 def hash_password(password: str) -> str:
     """
@@ -19,14 +11,8 @@ def hash_password(password: str) -> str:
     """
     if not password:
         raise ValueError("Password cannot be empty")
-    if _BCRYPT_AVAILABLE and _bcrypt_mod is not None:
-        salt = _bcrypt_mod.gensalt(rounds=12)
-        return _bcrypt_mod.hashpw(password.encode("utf-8"), salt).decode("utf-8")
-    else:
-        # Cryptographically secure scrypt fallback with 16-byte random salt
-        salt = os.urandom(16)
-        key = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=16384, r=8, p=1)
-        return f"scrypt${salt.hex()}${key.hex()}"
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 def verify_password(password: str, hashed: str) -> bool:
     """Verifies a plaintext password against a stored bcrypt or scrypt hash."""
@@ -34,8 +20,7 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
     try:
         if hashed.startswith("$2b$") or hashed.startswith("$2a$") or hashed.startswith("$2y$"):
-            if _BCRYPT_AVAILABLE and _bcrypt_mod is not None:
-                return _bcrypt_mod.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+            return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
         elif hashed.startswith("scrypt$"):
             parts = hashed.split("$")
             if len(parts) == 3:
